@@ -38,18 +38,13 @@ class MultiCropTransform:
 
         # Global crop transformation
         self.global_transfo = transforms.Compose([
-            transforms.RandomResizedCrop(
-                size,
-                scale=global_crops_scale,
-                interpolation=transforms.InterpolationMode.BICUBIC
-            ),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomApply(
                 [transforms.ColorJitter(
                     brightness=color_jitter,
                     contrast=color_jitter,
                     saturation=color_jitter,
-                    hue=color_jitter/4
+                    hue=color_jitter / 4
                 )],
                 p=0.8
             ),
@@ -64,18 +59,13 @@ class MultiCropTransform:
 
         # Add solarization to second global crop
         self.global_transfo2 = transforms.Compose([
-            transforms.RandomResizedCrop(
-                size,
-                scale=global_crops_scale,
-                interpolation=transforms.InterpolationMode.BICUBIC
-            ),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomApply(
                 [transforms.ColorJitter(
                     brightness=color_jitter,
                     contrast=color_jitter,
                     saturation=color_jitter,
-                    hue=color_jitter/4
+                    hue=color_jitter / 4
                 )],
                 p=0.8
             ),
@@ -91,18 +81,13 @@ class MultiCropTransform:
 
         # Local crop transformation
         self.local_transfo = transforms.Compose([
-            transforms.RandomResizedCrop(
-                size,
-                scale=local_crops_scale,
-                interpolation=transforms.InterpolationMode.BICUBIC
-            ),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomApply(
                 [transforms.ColorJitter(
                     brightness=color_jitter,
                     contrast=color_jitter,
                     saturation=color_jitter,
-                    hue=color_jitter/4
+                    hue=color_jitter / 4
                 )],
                 p=0.8
             ),
