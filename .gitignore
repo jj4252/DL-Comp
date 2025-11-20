@@ -36,7 +36,7 @@ env/
 .vscode/
 
 # Data and cache
-data/
+data
 !configs/data/
 *.csv
 *.h5
