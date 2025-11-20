@@ -119,7 +119,6 @@ class HuggingFaceImageDataset(Dataset):
         dataset_name: str,
         split: str = "train",
         transform=None,
-        max_samples: Optional[int] = None,
         cache_dir: Optional[str] = None,
         streaming: bool = False,
         image_key: str = "image",
@@ -136,12 +135,6 @@ class HuggingFaceImageDataset(Dataset):
             cache_dir=cache_dir,
             streaming=streaming,
         )
-
-        # Limit number of samples if specified
-        if max_samples is not None and not streaming:
-            indices = list(range(min(max_samples, len(self.dataset))))
-            self.dataset = self.dataset.select(indices)
-
 
         print(f"Dataset loaded with {len(self.dataset) if not streaming else 'streaming'} samples")
 
@@ -226,7 +219,6 @@ def create_dataloader(
     batch_size: int,
     num_workers: int,
     transform,
-    max_samples: Optional[int] = None,
     cache_dir: Optional[str] = None,
     streaming: bool = False,
     pin_memory: bool = True,
@@ -241,7 +233,6 @@ def create_dataloader(
         dataset_name=dataset_name,
         split=split,
         transform=transform,
-        max_samples=max_samples,
         cache_dir=cache_dir,
         streaming=streaming,
         image_key=image_key,

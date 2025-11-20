@@ -20,11 +20,9 @@ from models import create_vision_transformer
 from torchvision import transforms
 
 
-def get_eval_transforms(image_size):
+def get_eval_transforms():
     """Simple transforms for evaluation (no augmentation)"""
     return transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -233,31 +231,34 @@ def main(cfg: DictConfig):
 
     print(f"Model loaded successfully!")
 
-    # Get evaluation dataset
-    eval_dataset_name = cfg.evaluation.get('eval_dataset', cfg.data.dataset_name)
-    eval_image_key = cfg.evaluation.get('eval_image_key', 'img')  # Default for CIFAR
+    # Evaluation dataset configuration:
+    # Use the dataset specified in cfg.data (e.g., configs/data/cifar100.yaml)
+    print(f"\nLoading evaluation dataset from data config: {cfg.data.dataset_name}")
+    print(f"  train split: {cfg.data.train_split}")
+    print(f"  test  split: {cfg.data.val_split}")
+    print(f"  image key : {cfg.data.image_key}")
 
-    print(f"\nLoading evaluation dataset: {eval_dataset_name}")
-
-    # Evaluation transforms (no augmentation)
-    eval_transform = get_eval_transforms(cfg.model.vit.img_size)
+    # Evaluation transforms (no augmentation, keep original image size)
+    eval_transform = get_eval_transforms()
 
     # Load train split for feature extraction
     train_dataset = HuggingFaceImageDataset(
-        dataset_name=eval_dataset_name,
-        split='train',
+        dataset_name=cfg.data.dataset_name,
+        split=cfg.data.train_split,
         transform=eval_transform,
         cache_dir=cfg.data.cache_dir,
-        image_key=eval_image_key,
+        streaming=cfg.data.streaming,
+        image_key=cfg.data.image_key,
     )
 
     # Load test split
     test_dataset = HuggingFaceImageDataset(
-        dataset_name=eval_dataset_name,
-        split='test',
+        dataset_name=cfg.data.dataset_name,
+        split=cfg.data.val_split,
         transform=eval_transform,
         cache_dir=cfg.data.cache_dir,
-        image_key=eval_image_key,
+        streaming=cfg.data.streaming,
+        image_key=cfg.data.image_key,
     )
 
     # Create dataloaders
@@ -295,31 +296,30 @@ def main(cfg: DictConfig):
     results = {}
 
     # k-NN evaluation
-    if cfg.evaluation.get('run_knn', True):
-        knn_k = cfg.evaluation.get('knn_k', 20)
-        knn_top1, knn_top5 = knn_evaluation(
-            train_features, train_labels,
-            test_features, test_labels,
-            k=knn_k
-        )
-        results['knn_top1'] = knn_top1
-        if knn_top5 is not None:
-            results['knn_top5'] = knn_top5
+
+    knn_k = cfg.evaluation.get('knn_k', 20)
+    knn_top1, knn_top5 = knn_evaluation(
+        train_features, train_labels,
+        test_features, test_labels,
+        k=knn_k
+    )
+    results['knn_top1'] = knn_top1
+    if knn_top5 is not None:
+        results['knn_top5'] = knn_top5
 
     # Linear probing evaluation
-    if cfg.evaluation.get('run_linear_probe', True):
-        linear_top1, linear_top5 = linear_probe_evaluation(
-            train_features, train_labels,
-            test_features, test_labels,
-            num_classes=num_classes,
-            device=device,
-            epochs=cfg.evaluation.get('linear_probe_epochs', 100),
-            lr=cfg.evaluation.get('linear_probe_lr', 0.001),
-            batch_size=cfg.evaluation.get('batch_size', 256),
-        )
-        results['linear_top1'] = linear_top1
-        if linear_top5 is not None:
-            results['linear_top5'] = linear_top5
+    linear_top1, linear_top5 = linear_probe_evaluation(
+        train_features, train_labels,
+        test_features, test_labels,
+        num_classes=num_classes,
+        device=device,
+        epochs=cfg.evaluation.get('linear_probe_epochs', 100),
+        lr=cfg.evaluation.get('linear_probe_lr', 0.001),
+        batch_size=cfg.evaluation.get('batch_size', 256),
+    )
+    results['linear_top1'] = linear_top1
+    if linear_top5 is not None:
+        results['linear_top5'] = linear_top5
 
     # Print summary
     print(f"\n{'='*80}")
@@ -330,7 +330,7 @@ def main(cfg: DictConfig):
     print(f"{'='*80}")
 
     # Save results
-    results_dir = Path(cfg.evaluation.get('results_dir', './eval_results'))
+    results_dir = Path(cfg.evaluation.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
 
     results_file = results_dir / f"results_{cfg.experiment_name}.txt"
@@ -338,7 +338,7 @@ def main(cfg: DictConfig):
         f.write(f"Evaluation Results\n")
         f.write(f"{'='*60}\n")
         f.write(f"Checkpoint: {checkpoint_path}\n")
-        f.write(f"Eval Dataset: {eval_dataset_name}\n")
+        f.write(f"Eval Dataset: {cfg.evaluation.eval_dataset}\n")
         f.write(f"Number of classes: {num_classes}\n")
         f.write(f"\nResults:\n")
         for key, value in results.items():

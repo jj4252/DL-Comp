@@ -47,7 +47,6 @@ def create_dataloaders(cfg: DictConfig):
         batch_size=cfg.training.batch_size,
         num_workers=cfg.training.num_workers,
         transform=transform,
-        max_samples=cfg.data.num_samples,
         cache_dir=cfg.data.cache_dir,
         streaming=cfg.data.streaming,
         pin_memory=cfg.training.pin_memory,

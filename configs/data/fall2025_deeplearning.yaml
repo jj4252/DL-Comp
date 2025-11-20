@@ -5,7 +5,6 @@ data:
   dataset_config: null
   streaming: false
   cache_dir: /gpfs/scratch/dl5635/.cache
-  num_samples: null  # Use all samples (500K)
 
   # Image preprocessing
   image_size: 96  # Native resolution 96x96 - DO NOT CHANGE per competition rules

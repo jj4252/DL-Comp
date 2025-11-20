@@ -43,10 +43,8 @@ evaluation:
   results_dir: ./eval_results
 
   # k-NN evaluation
-  run_knn: true
   knn_k: 20
 
   # Linear probing
-  run_linear_probe: true
   linear_probe_epochs: 100
   linear_probe_lr: 0.001

@@ -4,7 +4,6 @@ data:
   dataset_config: null
   streaming: false
   cache_dir: /gpfs/scratch/dl5635/.cache
-  num_samples: null  # Use all samples (50K train, 10K test)
 
   # Image preprocessing
   image_size: 32  # Native resolution 32x32
