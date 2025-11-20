@@ -204,7 +204,7 @@ def main(cfg: DictConfig):
         return
 
     print(f"\nLoading checkpoint from: {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
     # Create model
     print("Creating model...")
@@ -232,7 +232,7 @@ def main(cfg: DictConfig):
     print(f"Model loaded successfully!")
 
     # Evaluation dataset configuration:
-    # Use the dataset specified in cfg.data (e.g., configs/data/cifar100.yaml)
+    # Use the dataset specified in cfg.data.dataset_name (e.g., configs/data/cifar100.yaml)
     print(f"\nLoading evaluation dataset from data config: {cfg.data.dataset_name}")
     print(f"  train split: {cfg.data.train_split}")
     print(f"  test  split: {cfg.data.val_split}")
@@ -338,7 +338,7 @@ def main(cfg: DictConfig):
         f.write(f"Evaluation Results\n")
         f.write(f"{'='*60}\n")
         f.write(f"Checkpoint: {checkpoint_path}\n")
-        f.write(f"Eval Dataset: {cfg.evaluation.eval_dataset}\n")
+        f.write(f"Eval Dataset: {cfg.data.dataset_name}\n")
         f.write(f"Number of classes: {num_classes}\n")
         f.write(f"\nResults:\n")
         for key, value in results.items():

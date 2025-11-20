@@ -36,9 +36,7 @@ logging:
 
 # Evaluation
 evaluation:
-  checkpoint_path: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoint_final.pth
-  eval_dataset: cifar100  # Dataset to evaluate on
-  eval_image_key: img  # 'img' for CIFAR, 'image' for most others
+  checkpoint_path: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13200170/checkpoint_final.pth
   batch_size: 256
   results_dir: ./eval_results
 
@@ -46,5 +44,5 @@ evaluation:
   knn_k: 20
 
   # Linear probing
-  linear_probe_epochs: 100
+  linear_probe_epochs: 500
   linear_probe_lr: 0.001

@@ -6,7 +6,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --mem=64GB
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=train_dino_v2
+#SBATCH --job-name=eval_dino_v2
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=dl5635@nyu.edu
 #SBATCH --output="logs/%x/%j.out"
@@ -29,9 +29,9 @@ conda activate ssl-vision
 cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 mkdir -p logs/${SLURM_JOB_NAME}
 
-HYDRA_FULL_ERROR=1 python ssl_vision/train.py \
+HYDRA_FULL_ERROR=1 python ssl_vision/eval.py \
     experiment_name=${EXPERIMENT_ID} \
     data=cifar100 \
     model.vit.img_size=32 \
-    model.vit.patch_size=4
-
+    model.vit.patch_size=4 \
+    evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13200170/checkpoint_epoch_180.pth

@@ -135,7 +135,7 @@ def create_vision_transformer(cfg):
         cfg.model.architecture,
         pretrained=False,
         num_classes=0,  # Remove classification head
-        img_size=cfg.data.image_size,
+        img_size=vit_cfg.img_size,
         patch_size=vit_cfg.patch_size,
         embed_dim=vit_cfg.embed_dim,
         depth=vit_cfg.depth,
