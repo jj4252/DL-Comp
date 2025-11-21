@@ -15,7 +15,6 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from datasets import load_dataset
-import random
 
 
 class MultiCropTransform:

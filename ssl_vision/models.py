@@ -1,17 +1,16 @@
-"""
-Vision Transformer models for self-supervised learning (DINO)
-"""
+from copy import deepcopy
+from typing import Optional
+from functools import partial
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functools import partial
 import timm
-from typing import Optional
 
 
 class DINOHead(nn.Module):
     """
-    Projection head for DINO/DINOv2
+    Projection head for DINO
     """
     def __init__(
         self,
@@ -163,34 +162,29 @@ def create_vision_transformer(cfg):
 
 def create_dino_model(cfg):
     """
-    Create DINO/DINOv2/DINOv3 model (student and teacher)
+    Create DINOv2 model (student and teacher)
     """
     # Create backbone
-    backbone = create_vision_transformer(cfg)
-    embed_dim = cfg.model.vit.embed_dim
-
-    # Determine bottleneck_dim
-    bottleneck_dim = cfg.model.dino.get('bottleneck_dim', 256)
+    backbone_s = create_vision_transformer(cfg)
+    backbone_t = create_vision_transformer(cfg)
 
     # Create head (only for CLS token in pure DINO)
-    head = DINOHead(
-        in_dim=embed_dim,
+    head_s = DINOHead(
+        in_dim=cfg.model.vit.embed_dim,
         out_dim=cfg.model.dino.out_dim,
         norm_last_layer=cfg.model.dino.norm_last_layer,
-        bottleneck_dim=bottleneck_dim,
+        bottleneck_dim=cfg.model.dino.bottleneck_dim,
+    )
+    head_t = DINOHead(
+        in_dim=cfg.model.vit.embed_dim,
+        out_dim=cfg.model.dino.out_dim,
+        norm_last_layer=cfg.model.dino.norm_last_layer,
+        bottleneck_dim=cfg.model.dino.bottleneck_dim,
     )
 
     # Wrap with multi-crop wrapper
-    student = MultiCropWrapper(backbone, head)
-    teacher = MultiCropWrapper(
-        create_vision_transformer(cfg),
-        DINOHead(
-            in_dim=embed_dim,
-            out_dim=cfg.model.dino.out_dim,
-            norm_last_layer=cfg.model.dino.norm_last_layer,
-            bottleneck_dim=bottleneck_dim,
-        )
-    )
+    student = MultiCropWrapper(backbone_s, head_s)
+    teacher = MultiCropWrapper(backbone_t, head_t)
 
     # Teacher starts with same weights as student
     teacher.load_state_dict(student.state_dict())
