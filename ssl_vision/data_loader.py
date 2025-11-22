@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image, UnidentifiedImageError
 import torch
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 from datasets import load_dataset
 
@@ -55,7 +56,7 @@ class MultiCropTransform:
             ),
             transforms.RandomGrayscale(p=grayscale_prob),
             transforms.RandomApply(
-                [transforms.GaussianBlur(kernel_size=23, sigma=(0.1, 2.0))],
+                [transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))],
                 p=gaussian_blur_prob
             ),
             transforms.ToTensor(),
@@ -76,7 +77,7 @@ class MultiCropTransform:
             ),
             transforms.RandomGrayscale(p=grayscale_prob),
             transforms.RandomApply(
-                [transforms.GaussianBlur(kernel_size=23, sigma=(0.1, 2.0))],
+                [transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))],
                 p=gaussian_blur_prob
             ),
             transforms.RandomSolarize(threshold=128, p=solarization_prob),
@@ -98,7 +99,7 @@ class MultiCropTransform:
             ),
             transforms.RandomGrayscale(p=grayscale_prob),
             transforms.RandomApply(
-                [transforms.GaussianBlur(kernel_size=23, sigma=(0.1, 2.0))],
+                [transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))],
                 p=gaussian_blur_prob
             ),
             transforms.ToTensor(),
@@ -296,6 +297,9 @@ def create_dataloader(
     persistent_workers: bool = True,
     data_dir: Optional[str] = None,
     use_local_files: bool = False,
+    distributed: bool = False,
+    rank: int = 0,
+    world_size: Optional[int] = None,
 ) -> DataLoader:
     """
     Create a DataLoader for self-supervised learning with optimizations.
@@ -326,10 +330,26 @@ def create_dataloader(
             image_key=image_key,
         )
 
+    # Sampler / shuffling logic
+    sampler = None
+    shuffle = not streaming
+    if distributed:
+        if world_size is None:
+            raise ValueError("world_size must be provided when distributed=True")
+        sampler = DistributedSampler(
+            dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=shuffle,
+            drop_last=True,
+        )
+        shuffle = False
+
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
-        shuffle=True if not streaming else False,
+        shuffle=shuffle,
+        sampler=sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
         drop_last=True,
