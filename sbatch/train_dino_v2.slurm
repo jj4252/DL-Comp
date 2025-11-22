@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --partition=a100_short
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --time=24:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --mem=64GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=train_dino_v2

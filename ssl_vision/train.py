@@ -1,14 +1,18 @@
 """
 Main training script for self-supervised learning (DINO)
 """
-import torch
-import torch.nn as nn
-import hydra
-from omegaconf import DictConfig, OmegaConf
+import os
 from pathlib import Path
-from tqdm import tqdm
-import numpy as np
 from typing import Optional
+
+import hydra
+import numpy as np
+import torch
+import torch.distributed as dist
+import torch.nn as nn
+from omegaconf import DictConfig, OmegaConf
+from tqdm import tqdm
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from data_loader import create_dataloader, get_transforms
 from models import (
@@ -36,8 +40,13 @@ def create_models(cfg: DictConfig, device: torch.device):
     return student, teacher
 
 
-def create_dataloaders(cfg: DictConfig):
-    """Create training dataloader."""
+def create_dataloaders(
+    cfg: DictConfig,
+    distributed: bool,
+    rank: int,
+    world_size: int,
+):
+    """Create training dataloader (optionally distributed)."""
     # Simple fast transforms - NO augmentations
     transform = get_transforms(cfg)
 
@@ -52,13 +61,16 @@ def create_dataloaders(cfg: DictConfig):
         num_workers=cfg.training.num_workers,
         transform=transform,
         cache_dir=cfg.data.cache_dir,
-        streaming=cfg.data.streaming,
+        shuffle=True,
         pin_memory=cfg.training.pin_memory,
         image_key=cfg.data.image_key,
         prefetch_factor=cfg.training.get("prefetch_factor", 4),
         persistent_workers=cfg.training.get("persistent_workers", True),
         data_dir=data_dir,
         use_local_files=use_local_files,
+        distributed=distributed,
+        rank=rank,
+        world_size=world_size,
     )
     return train_loader
 
@@ -133,21 +145,20 @@ def save_checkpoint(
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
     cfg: DictConfig,
-    scaler: Optional[torch.cuda.amp.GradScaler],
 ):
     """Save training checkpoint."""
+    # Handle both plain nn.Module and DDP-wrapped student
+    student_module = student.module if hasattr(student, "module") else student
+
     checkpoint = {
         "epoch": epoch,
         "global_step": global_step,
-        "student_state_dict": student.state_dict(),
+        "student_state_dict": student_module.state_dict(),
         "teacher_state_dict": teacher.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict(),
         "config": OmegaConf.to_container(cfg, resolve=True),
     }
-
-    if scaler is not None:
-        checkpoint["scaler_state_dict"] = scaler.state_dict()
 
     save_path = checkpoint_dir / filename
     torch.save(checkpoint, save_path)
@@ -161,7 +172,6 @@ def load_checkpoint(
     teacher: nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
-    scaler: Optional[torch.cuda.amp.GradScaler],
 ):
     """Load training checkpoint and return (next_epoch, global_step, metadata)."""
     checkpoint_file = Path(checkpoint_path)
@@ -175,9 +185,6 @@ def load_checkpoint(
     teacher.load_state_dict(checkpoint["teacher_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-    if scaler is not None and "scaler_state_dict" in checkpoint:
-        scaler.load_state_dict(checkpoint["scaler_state_dict"])
 
     next_epoch = checkpoint["epoch"] + 1
     global_step = checkpoint["global_step"]
@@ -199,9 +206,9 @@ def handle_resume(
     teacher: nn.Module,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
-    scaler: Optional[torch.cuda.amp.GradScaler],
     start_epoch: int,
     start_global_step: int,
+    is_main_process: bool,
 ):
     """Handle resume logic. Returns (epoch, global_step, resume_info)."""
     resume_path = cfg.checkpoint.resume_from
@@ -216,7 +223,8 @@ def handle_resume(
                 "Ensure the path is correct or unset checkpoint.resume_from."
             )
 
-        print(f"📂 Loading checkpoint from previous experiment: {checkpoint_path}")
+        if is_main_process:
+            print(f"📂 Loading checkpoint from previous experiment: {checkpoint_path}")
         next_epoch, global_step, metadata = load_checkpoint(
             str(checkpoint_path),
             device=device,
@@ -224,7 +232,6 @@ def handle_resume(
             teacher=teacher,
             optimizer=optimizer,
             scheduler=scheduler,
-            scaler=scaler,
         )
 
         resume_info = {
@@ -237,8 +244,9 @@ def handle_resume(
         return next_epoch, global_step, resume_info
 
     # Case 2: Starting fresh
-    print(f"🆕 Starting new experiment: {cfg.experiment_name}")
-    print(f"📁 Checkpoints will be saved to: {checkpoint_dir}")
+    if is_main_process:
+        print(f"🆕 Starting new experiment: {cfg.experiment_name}")
+        print(f"📁 Checkpoints will be saved to: {checkpoint_dir}")
     return start_epoch, start_global_step, None
 
 
@@ -251,9 +259,9 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
     criterion: nn.Module,
-    scaler: Optional[torch.cuda.amp.GradScaler],
     device: torch.device,
     global_step: int,
+    is_main_process: bool,
 ):
     """Train for one epoch and return (avg_loss, global_step)."""
     student.train()
@@ -261,9 +269,14 @@ def train_one_epoch(
 
     loss_meter = AverageMeter()
 
+    # Ensure each distributed sampler gets a different seed per epoch
+    if hasattr(train_loader, "sampler") and hasattr(train_loader.sampler, "set_epoch"):
+        train_loader.sampler.set_epoch(epoch)
+
     pbar = tqdm(
         train_loader,
         desc=f"Epoch {epoch}",
+        disable=not is_main_process,
     )
 
     for batch_idx, (images, _) in enumerate(pbar):
@@ -271,7 +284,7 @@ def train_one_epoch(
         images = [img.to(device, non_blocking=True) for img in images]
 
         # Forward pass with mixed precision
-        with torch.cuda.amp.autocast(enabled=cfg.training.mixed_precision):
+        with torch.cuda.amp.autocast(enabled=cfg.training.mixed_precision, dtype=torch.bfloat16):
             # Student forward (all views)
             student_output = student(images)
 
@@ -284,30 +297,16 @@ def train_one_epoch(
         # Backward pass
         optimizer.zero_grad()
 
-        if scaler is not None:
-            scaler.scale(loss).backward()
+        loss.backward()
 
-            # Gradient clipping
-            if cfg.training.gradient_clip > 0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    student.parameters(),
-                    cfg.training.gradient_clip,
-                )
+        # Gradient clipping
+        if cfg.training.gradient_clip > 0:
+            torch.nn.utils.clip_grad_norm_(
+                student.parameters(),
+                cfg.training.gradient_clip,
+            )
 
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            loss.backward()
-
-            # Gradient clipping
-            if cfg.training.gradient_clip > 0:
-                torch.nn.utils.clip_grad_norm_(
-                    student.parameters(),
-                    cfg.training.gradient_clip,
-                )
-
-            optimizer.step()
+        optimizer.step()
 
         # Update learning rate
         scheduler.step()
@@ -328,7 +327,7 @@ def train_one_epoch(
             }
         )
 
-        if global_step % cfg.logging.log_frequency == 0:
+        if is_main_process and global_step % cfg.logging.log_frequency == 0:
             print(
                 f"Step {global_step} - Loss: {loss_meter.avg:.4f}, "
                 f"LR: {scheduler.get_last_lr()[0]:.6f}"
@@ -342,13 +341,52 @@ def train_one_epoch(
 @hydra.main(version_base=None, config_path="../configs", config_name="default")
 def main(cfg: DictConfig):
     """Main entry point (procedural training loop, no Trainer class)."""
-    print("=" * 80)
-    print("Configuration:")
-    print(OmegaConf.to_yaml(cfg))
-    print("=" * 80)
+    # ------------------------------------------------------------------
+    # Distributed setup
+    # ------------------------------------------------------------------
+    dist_cfg = getattr(cfg, "distributed", None) or {}
+    use_distributed = bool(dist_cfg.get("enabled", False))
+    world_size = 1
+    rank = 0
+    local_rank = 0
+
+    if use_distributed and torch.cuda.is_available():
+        # torchrun provides these environment variables
+        if "RANK" not in os.environ or "WORLD_SIZE" not in os.environ:
+            # Safety fallback: avoid hanging init_process_group if misconfigured
+            print(
+                "[WARN] cfg.distributed.enabled=True but RANK/WORLD_SIZE are not set. "
+                "Run with torchrun or disable distributed training; falling back to single-process."
+            )
+            use_distributed = False
+        else:
+            rank = int(os.environ["RANK"])
+            world_size = int(os.environ["WORLD_SIZE"])
+            local_rank = int(os.environ.get("LOCAL_RANK", rank % max(world_size, 1)))
+
+            torch.cuda.set_device(local_rank)
+            dist.init_process_group(
+                backend=dist_cfg.get("backend", "nccl"),
+                init_method=dist_cfg.get("init_method", "env://"),
+                world_size=world_size,
+                rank=rank,
+            )
+
+    is_main_process = (rank == 0)
+
+    if is_main_process:
+        print("=" * 80)
+        print("Configuration:")
+        print(OmegaConf.to_yaml(cfg))
+        print("=" * 80)
 
     # Device and seeds
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{local_rank}")
+        torch.cuda.manual_seed_all(cfg.seed)
+    else:
+        device = torch.device("cpu")
+
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
 
@@ -359,10 +397,17 @@ def main(cfg: DictConfig):
 
     # Create components
     student, teacher = create_models(cfg, device)
-    train_loader = create_dataloaders(cfg)
+    student = torch.compile(student)
+    teacher = torch.compile(teacher)
+
+    train_loader = create_dataloaders(
+        cfg=cfg,
+        distributed=use_distributed and torch.cuda.is_available(),
+        rank=rank,
+        world_size=world_size,
+    )
     optimizer, scheduler = create_optimizer_and_scheduler(cfg, student, train_loader)
     criterion = create_loss(cfg, device)
-    scaler = torch.cuda.amp.GradScaler() if cfg.training.mixed_precision else None
 
     # Resume (if needed)
     epoch = 0
@@ -375,25 +420,40 @@ def main(cfg: DictConfig):
         teacher=teacher,
         optimizer=optimizer,
         scheduler=scheduler,
-        scaler=scaler,
         start_epoch=epoch,
         start_global_step=global_step,
+        is_main_process=is_main_process,
     )
 
+    # Wrap student in DDP (after loading checkpoint so state_dict keys stay simple)
+    if use_distributed and torch.cuda.is_available():
+        student = DDP(
+            student,
+            device_ids=[local_rank],
+            output_device=local_rank,
+            find_unused_parameters=cfg.distributed.get(
+                "find_unused_parameters",
+                False,
+            ),
+        )
+
     # Logging (after resume so we have resume_info)
-    setup_logging(cfg, checkpoint_dir, resume_info)
+    if is_main_process:
+        setup_logging(cfg, checkpoint_dir, resume_info)
+
+        print(f"\n{'=' * 80}")
+        print("Training Configuration")
+        print(f"{'=' * 80}")
+        print(f"Experiment: {cfg.experiment_name}")
+        print(f"Starting epoch: {epoch}")
+        print(f"Target epochs: {cfg.training.num_epochs}")
+        print(f"Checkpoint dir: {checkpoint_dir}")
+        print(f"Device: {device}")
+        if use_distributed:
+            print(f"World size: {world_size}")
+        print(f"{'=' * 80}\n")
 
     # Training loop
-    print(f"\n{'=' * 80}")
-    print("Training Configuration")
-    print(f"{'=' * 80}")
-    print(f"Experiment: {cfg.experiment_name}")
-    print(f"Starting epoch: {epoch}")
-    print(f"Target epochs: {cfg.training.num_epochs}")
-    print(f"Checkpoint dir: {checkpoint_dir}")
-    print(f"Device: {device}")
-    print(f"{'=' * 80}\n")
-
     for ep in range(epoch, cfg.training.num_epochs):
         # Train for one epoch
         avg_loss, global_step = train_one_epoch(
@@ -405,13 +465,13 @@ def main(cfg: DictConfig):
             optimizer=optimizer,
             scheduler=scheduler,
             criterion=criterion,
-            scaler=scaler,
             device=device,
             global_step=global_step,
+            is_main_process=is_main_process,
         )
 
-        # Save checkpoint
-        if ep % cfg.checkpoint.save_frequency == 0:
+        # Save checkpoint (only on main process)
+        if is_main_process and ep % cfg.checkpoint.save_frequency == 0:
             save_checkpoint(
                 checkpoint_dir=checkpoint_dir,
                 filename=f"checkpoint_epoch_{ep}.pth",
@@ -422,26 +482,31 @@ def main(cfg: DictConfig):
                 optimizer=optimizer,
                 scheduler=scheduler,
                 cfg=cfg,
-                scaler=scaler,
             )
 
-        print(f"Epoch {ep}: Loss = {avg_loss:.4f}")
+        if is_main_process:
+            print(f"Epoch {ep}: Loss = {avg_loss:.4f}")
 
-    # Save final checkpoint
-    save_checkpoint(
-        checkpoint_dir=checkpoint_dir,
-        filename="checkpoint_final.pth",
-        epoch=cfg.training.num_epochs - 1,
-        global_step=global_step,
-        student=student,
-        teacher=teacher,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        cfg=cfg,
-        scaler=scaler,
-    )
+    # Save final checkpoint (only on main process)
+    if is_main_process:
+        save_checkpoint(
+            checkpoint_dir=checkpoint_dir,
+            filename="checkpoint_final.pth",
+            epoch=cfg.training.num_epochs - 1,
+            global_step=global_step,
+            student=student,
+            teacher=teacher,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            cfg=cfg,
+        )
 
-    print("Training completed!")
+        print("Training completed!")
+
+    # Clean up distributed state
+    if use_distributed and dist.is_initialized():
+        dist.barrier()
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":

@@ -4,10 +4,9 @@ data:
   # Original HuggingFace dataset identifier (kept for reference / optional use)
   dataset_name: tsbpp/fall2025_deeplearning
   dataset_config: null
-  streaming: false
   cache_dir: /gpfs/scratch/dl5635/.cache
 
-  # Use locally stored images instead of streaming from HuggingFace.
+  # Use locally stored images instead of loading from HuggingFace.
   # The 500k images should be downloaded to:
   #   /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/fall2025_dl/train
   use_local_files: true

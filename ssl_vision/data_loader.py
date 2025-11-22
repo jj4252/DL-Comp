@@ -290,7 +290,7 @@ def create_dataloader(
     num_workers: int,
     transform,
     cache_dir: Optional[str] = None,
-    streaming: bool = False,
+    shuffle: bool = False,
     pin_memory: bool = True,
     image_key: str = "image",
     prefetch_factor: int = 4,
@@ -326,23 +326,15 @@ def create_dataloader(
             split=split,
             transform=transform,
             cache_dir=cache_dir,
-            streaming=streaming,
             image_key=image_key,
         )
 
     # Sampler / shuffling logic
     sampler = None
-    shuffle = not streaming
     if distributed:
         if world_size is None:
             raise ValueError("world_size must be provided when distributed=True")
-        sampler = DistributedSampler(
-            dataset,
-            num_replicas=world_size,
-            rank=rank,
-            shuffle=shuffle,
-            drop_last=True,
-        )
+        sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, drop_last=True)
         shuffle = False
 
     dataloader = DataLoader(
@@ -352,7 +344,7 @@ def create_dataloader(
         sampler=sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
-        drop_last=True,
+        drop_last=distributed,
         collate_fn=collate_fn,  # Use custom collate function
         prefetch_factor=prefetch_factor,  # Prefetch more batches
         persistent_workers=persistent_workers,  # Keep workers alive between epochs

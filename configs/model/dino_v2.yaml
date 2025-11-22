@@ -42,7 +42,7 @@ model:
     # Multi-crop settings (optimized for speed)
     global_crops_scale: [0.32, 1.0]
     local_crops_scale: [0.05, 0.32]
-    local_crops_number: 2
+    local_crops_number: 4
 
     # Koleo regularization
     use_koleo: true

@@ -128,7 +128,7 @@ def linear_probe_evaluation(
 
     # Create dataset and loader
     train_dataset = torch.utils.data.TensorDataset(train_features_tensor, train_labels_tensor)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    linear_train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     # Training loop
     print(f"Training linear classifier for {epochs} epochs...")
@@ -138,7 +138,7 @@ def linear_probe_evaluation(
         classifier.train()
         total_loss = 0
 
-        for features, labels in train_loader:
+        for features, labels in linear_train_loader:
             features, labels = features.to(device), labels.to(device)
 
             # Forward pass
@@ -171,7 +171,7 @@ def linear_probe_evaluation(
                 if accuracy > best_acc:
                     best_acc = accuracy
 
-                print(f"Epoch {epoch+1}/{epochs} - Loss: {total_loss/len(train_loader):.4f}, "
+                print(f"Epoch {epoch+1}/{epochs} - Loss: {total_loss/len(linear_train_loader):.4f}, "
                       f"Acc: {accuracy*100:.2f}%", end="")
                 if top5_acc is not None:
                     print(f", Top-5: {top5_acc*100:.2f}%")
@@ -249,7 +249,6 @@ def main(cfg: DictConfig):
         split=cfg.data.train_split,
         transform=eval_transform,
         cache_dir=cfg.data.cache_dir,
-        streaming=cfg.data.streaming,
         image_key=cfg.data.image_key,
     )
 
@@ -259,12 +258,11 @@ def main(cfg: DictConfig):
         split=cfg.data.val_split,
         transform=eval_transform,
         cache_dir=cfg.data.cache_dir,
-        streaming=cfg.data.streaming,
         image_key=cfg.data.image_key,
     )
 
     # Create dataloaders
-    train_loader = DataLoader(
+    image_train_loader = DataLoader(
         train_dataset,
         batch_size=cfg.evaluation.get('batch_size', 256),
         shuffle=False,
@@ -272,7 +270,7 @@ def main(cfg: DictConfig):
         pin_memory=True,
     )
 
-    test_loader = DataLoader(
+    image_test_loader = DataLoader(
         test_dataset,
         batch_size=cfg.evaluation.get('batch_size', 256),
         shuffle=False,
@@ -285,10 +283,10 @@ def main(cfg: DictConfig):
 
     # Extract features
     print("\nExtracting features from train set...")
-    train_features, train_labels = extract_features(backbone, train_loader, device)
+    train_features, train_labels = extract_features(backbone, image_train_loader, device)
 
     print("Extracting features from test set...")
-    test_features, test_labels = extract_features(backbone, test_loader, device)
+    test_features, test_labels = extract_features(backbone, image_test_loader, device)
 
     num_classes = len(np.unique(train_labels))
     print(f"\nNumber of classes: {num_classes}")

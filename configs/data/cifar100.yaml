@@ -2,7 +2,6 @@
 data:
   dataset_name: cifar100
   dataset_config: null
-  streaming: false
   cache_dir: /gpfs/scratch/dl5635/.cache
 
   # Image preprocessing

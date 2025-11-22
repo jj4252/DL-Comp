@@ -1,7 +1,7 @@
 # @package _global_
 optimizer:
   name: adamw
-  lr: 0.0005
+  lr: 0.0005  # matches with global bsz=512
   weight_decay: 0.04
   betas: [0.9, 0.999]
   eps: 1.0e-8
