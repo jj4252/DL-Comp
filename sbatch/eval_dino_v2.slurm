@@ -44,7 +44,7 @@ mkdir -p logs/${SLURM_JOB_NAME}
 HYDRA_FULL_ERROR=1 python ssl_vision/eval.py \
     experiment_name=${EXPERIMENT_ID} \
     data=cifar10 \
-    evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13212150/checkpoint_epoch_85.pth \
+    evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13212150/checkpoint_epoch_90.pth \
     # evaluation.linear_probe_epochs=100
 
 # ViT-Base
