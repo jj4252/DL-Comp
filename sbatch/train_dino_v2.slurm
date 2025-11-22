@@ -29,22 +29,19 @@ conda activate ssl-vision
 cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 mkdir -p logs/${SLURM_JOB_NAME}
 
-# CIFAR-100 + ViT-Tiny
+# ViT-Tiny
 # HYDRA_FULL_ERROR=1 python ssl_vision/train.py \
 #     experiment_name=${EXPERIMENT_ID} \
-#     data=cifar100 \
-#     model.vit.img_size=32 \
-#     model.vit.patch_size=4 \
 #     model.vit.embed_dim=192 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=3
 
-# fall2025_deeplearning + ViT-Small
+# ViT-Small
 HYDRA_FULL_ERROR=1 python ssl_vision/train.py \
     experiment_name=${EXPERIMENT_ID} \
-    checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth
+    # checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth
 
-# fall2025_deeplearning + ViT-Base
+# ViT-Base
 # HYDRA_FULL_ERROR=1 python ssl_vision/train.py \
 #     experiment_name=${EXPERIMENT_ID} \
 #     model.vit.embed_dim=768 \

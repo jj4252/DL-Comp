@@ -5,7 +5,7 @@ model:
 
   # Vision Transformer settings
   vit:
-    img_size: 96 # overrides the timm architecture's image size
+    image_size: 96 # overrides the timm architecture's image size
     patch_size: 8 # overrides the timm architecture's patch size
     # ViT-Base
     # embed_dim: 768

@@ -20,10 +20,11 @@ from models import create_vision_transformer
 from torchvision import transforms
 
 
-def get_eval_transforms():
+def get_eval_transforms(size=96):
     """Simple transforms for evaluation (no augmentation)"""
     return transforms.Compose([
         transforms.ToTensor(),
+        transforms.Resize(size),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
@@ -234,6 +235,7 @@ def main(cfg: DictConfig):
     # Evaluation dataset configuration:
     # Use the dataset specified in cfg.data.dataset_name (e.g., configs/data/cifar100.yaml)
     print(f"\nLoading evaluation dataset from data config: {cfg.data.dataset_name}")
+    print(f"  image size: {cfg.data.image_size}")
     print(f"  train split: {cfg.data.train_split}")
     print(f"  test  split: {cfg.data.val_split}")
     print(f"  image key : {cfg.data.image_key}")

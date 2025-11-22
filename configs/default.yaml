@@ -43,5 +43,5 @@ evaluation:
   knn_k: 20
 
   # Linear probing
-  linear_probe_epochs: 500
+  linear_probe_epochs: 2000
   linear_probe_lr: 0.001

@@ -29,25 +29,28 @@ conda activate ssl-vision
 cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 mkdir -p logs/${SLURM_JOB_NAME}
 
-# CIFAR-100 + ViT-Tiny
+# ViT-Tiny
 # HYDRA_FULL_ERROR=1 python ssl_vision/eval.py \
 #     experiment_name=${EXPERIMENT_ID} \
-#     data=cifar100 \
-#     model.vit.img_size=32 \
+#     data=cifar10 \
+#     model.vit.image_size=32 \
 #     model.vit.patch_size=4 \
 #     model.vit.embed_dim=192 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=3 \
 #     evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13201936/checkpoint_final.pth
 
-# fall2025_deeplearning + ViT-Small
+# ViT-Small
 HYDRA_FULL_ERROR=1 python ssl_vision/eval.py \
     experiment_name=${EXPERIMENT_ID} \
-    evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13201936/checkpoint_final.pth
+    data=cifar10 \
+    evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13212150/checkpoint_epoch_85.pth \
+    # evaluation.linear_probe_epochs=100
 
-# fall2025_deeplearning + ViT-Base
+# ViT-Base
 # HYDRA_FULL_ERROR=1 python ssl_vision/eval.py \
 #     experiment_name=${EXPERIMENT_ID} \
+#     data=cifar10 \
 #     model.vit.embed_dim=768 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=12 \
