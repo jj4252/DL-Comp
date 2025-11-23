@@ -1,6 +1,5 @@
-from copy import deepcopy
-from typing import Optional
 from functools import partial
+from omegaconf import DictConfig
 
 import torch
 import torch.nn as nn
@@ -160,7 +159,7 @@ def create_vision_transformer(cfg):
     return model
 
 
-def create_dino_model(cfg):
+def create_dino_model(cfg: DictConfig):
     """
     Create DINOv2 model (student and teacher)
     """
