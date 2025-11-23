@@ -8,6 +8,7 @@ Supports:
 import os
 from pathlib import Path
 from typing import Optional, List, Tuple
+import pandas as pd
 
 import numpy as np
 from PIL import Image, UnidentifiedImageError
@@ -274,6 +275,84 @@ class LocalImageDataset(Dataset):
         return image, label
 
 
+class SubmissionCUBDataset(Dataset):
+    """
+    Dataset for CUB-200 submission data.
+
+    Supports train/val splits with labels from CSV files, and test split without labels.
+
+    Args:
+        root_dir: Path to the CUB-200 directory
+        split: One of 'train', 'val', or 'test'
+        transform: Image transformations to apply
+    """
+
+    def __init__(self, root_dir: str, split: str = "train", transform=None):
+        self.root_dir = Path(root_dir)
+        self.split = split
+        self.transform = transform
+
+        # Load the appropriate CSV file
+        if split == 'train':
+            csv_path = self.root_dir / 'train_labels.csv'
+            img_dir = self.root_dir / 'train'
+        elif split == 'val':
+            csv_path = self.root_dir / 'val_labels.csv'
+            img_dir = self.root_dir / 'val'
+        elif split == 'test':
+            csv_path = self.root_dir / 'test_images.csv'
+            img_dir = self.root_dir / 'test'
+        else:
+            raise ValueError(f"Invalid split: {split}. Must be one of ['train', 'val', 'test']")
+
+        # Read CSV
+        if not csv_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+        self.df = pd.read_csv(csv_path)
+        self.img_dir = img_dir
+
+        # For test split, there are no labels
+        self.has_labels = split in ['train', 'val']
+
+        print(f"[SubmissionCUBDataset] Loaded {len(self.df)} samples from {split} split")
+        if self.has_labels:
+            print(f"[SubmissionCUBDataset] Number of classes: {self.df['class_id'].nunique()}")
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        filename = row['filename']
+        img_path = self.img_dir / filename
+
+        # Load image
+        try:
+            with Image.open(img_path) as img:
+                image = img.convert("RGB")
+        except Exception as e:
+            print(f"[WARN] Error loading image {img_path}: {e}")
+            # Return a black image as fallback
+            image = Image.new('RGB', (224, 224), color='black')
+
+        # Apply transformations
+        if self.transform:
+            image = self.transform(image)
+
+        # Get label if available
+        if self.has_labels:
+            label = int(row['class_id'])
+        else:
+            label = -1  # Placeholder for test set
+
+        return image, label, filename
+
+
+# Keep the old name for backward compatibility
+KaggleCUBDataset = SubmissionCUBDataset
+
+
 def collate_fn(batch):
     """
     Custom collate function for multi-crop batches.
@@ -415,8 +494,9 @@ def get_eval_transforms():
     """Simple transforms for evaluation (no augmentation)"""
     RESIZE_SIZE = 96    # fixed size for the model input
     return transforms.Compose([
+        transforms.Resize(RESIZE_SIZE),  # Resize shorter edge to 96
+        transforms.CenterCrop(RESIZE_SIZE),  # Crop to 96x96
         transforms.ToTensor(),
-        transforms.Resize(RESIZE_SIZE),
         transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]

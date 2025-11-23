@@ -1,0 +1,31 @@
+# Evaluation configuration for CUB-200 submission
+defaults:
+  - model: dino_v2
+  - data: submission_cub200
+  - _self_
+
+# Experiment settings
+experiment_name: submission_cub200
+seed: 42
+
+# Training settings (required by config structure, not used during eval)
+training:
+  num_workers: 8
+  batch_size: 256
+
+# Distributed training (not used during eval)
+distributed:
+  enabled: false
+
+# Evaluation settings
+evaluation:
+  checkpoint_path: /path/to/your/checkpoint.pth  # UPDATE THIS PATH BEFORE RUNNING
+  batch_size: 256
+  results_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/eval_results
+
+  # k-NN evaluation
+  knn_k: 20  # Number of neighbors for k-NN
+
+  # Linear probing
+  linear_probe_epochs: 1500
+  linear_probe_lr: 0.001

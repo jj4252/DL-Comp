@@ -1,0 +1,22 @@
+# @package _global_
+data:
+  dataset_name: submission_cub200
+  dataset_type: submission_cub  # Custom dataset type for CUB-200 submission
+  dataset_config: null
+  cache_dir: /gpfs/scratch/dl5635/.cache
+  data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/kaggle_CUB-200
+
+  # Image preprocessing
+  image_size: 96  # Match the model's input size
+  image_key: img  # Not used for custom dataset
+
+  # Data splits
+  train_split: train
+  val_split: val
+  test_split: test
+
+  # No augmentation (only for evaluation)
+  augmentation: null
+
+
+
