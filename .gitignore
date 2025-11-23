@@ -75,3 +75,8 @@ Thumbs.db
 temp/
 
 eval_results/
+
+
+raw_data/**
+raw_data/*
+raw_data
