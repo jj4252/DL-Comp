@@ -4,7 +4,3 @@ scheduler:
   warmup_epochs: 10
   min_lr: 1.0e-6
   warmup_start_lr: 1.0e-6
-
-
-
-

@@ -391,19 +391,15 @@ def main(cfg: DictConfig):
     checkpoint_dir = base_checkpoint_dir / cfg.experiment_name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create components
-    student, teacher = create_models(cfg, device)
-    student = torch.compile(student)
-    teacher = torch.compile(teacher)
-
+    # Create training dataloader
     train_loader = create_dataloaders(
         cfg=cfg,
         distributed=use_distributed and torch.cuda.is_available(),
         rank=rank,
         world_size=world_size,
     )
-    optimizer, scheduler = create_optimizer_and_scheduler(cfg, student, train_loader)
-    criterion = create_loss(cfg, device)
+
+    student, teacher = create_models(cfg, device)
 
     # Resume (if needed)
     epoch = 0
@@ -423,7 +419,7 @@ def main(cfg: DictConfig):
 
     # Wrap student in DDP (after loading checkpoint so state_dict keys stay simple)
     if use_distributed and torch.cuda.is_available():
-        student = DDP(
+        ddp_student = DDP(
             student,
             device_ids=[local_rank],
             output_device=local_rank,
@@ -432,6 +428,15 @@ def main(cfg: DictConfig):
                 False,
             ),
         )
+
+    # Compile student and teacher
+    compiled_student = torch.compile(ddp_student)
+    compiled_teacher = torch.compile(teacher)
+
+    optimizer, scheduler = create_optimizer_and_scheduler(cfg, compiled_student, train_loader)
+    criterion = create_loss(cfg, device)
+
+
 
     # Logging (after resume so we have resume_info)
     if is_main_process:
@@ -455,8 +460,8 @@ def main(cfg: DictConfig):
         avg_loss, global_step = train_one_epoch(
             cfg=cfg,
             epoch=ep,
-            student=student,
-            teacher=teacher,
+            student=compiled_student,
+            teacher=compiled_teacher,
             train_loader=train_loader,
             optimizer=optimizer,
             scheduler=scheduler,
