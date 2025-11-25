@@ -6,7 +6,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=eval_dino_v2
+#SBATCH --job-name=eval_cifar
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=dl5635@nyu.edu
 #SBATCH --output="logs/%x/%j.out"

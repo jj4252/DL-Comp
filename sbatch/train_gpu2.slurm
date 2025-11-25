@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --partition=a100_short
 #SBATCH --nodes=1
-#SBATCH --tasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --tasks-per-node=2 # 1 task (process) per GPU
+#SBATCH --cpus-per-task=16   # 32 logical CPUs (2 * 16)
 #SBATCH --time=2-00:00:00
 #SBATCH --mem=256GB
-#SBATCH --gres=gpu:1
-#SBATCH --job-name=train_dino_v2
+#SBATCH --gres=gpu:2
+#SBATCH --job-name=train_gpu2
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=dl5635@nyu.edu
 #SBATCH --output="logs/%x/%j.out"
@@ -33,22 +33,22 @@ echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 export HYDRA_FULL_ERROR=1
 export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
 
+START_TIME=$(date +%s)
 
-# ViT-Tiny
-# python scripts/train.py \
-#     experiment_name=${TRAIN_EXP_ID} \
-#     model.vit.embed_dim=192 \
-#     model.vit.depth=12 \
-#     model.vit.num_heads=3
+# ViT-Small (default config)
+torchrun --standalone --nproc_per_node=$SLURM_NTASKS scripts/train.py \
+  distributed.enabled=true \
+  experiment_name=${TRAIN_EXP_ID}
 
-# ViT-Small
-python scripts/train.py \
-    experiment_name=${TRAIN_EXP_ID} \
-    # checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth
+# Print training duration
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME - START_TIME))
+DAYS=$((ELAPSED/86400))
+HOURS=$(((ELAPSED%86400)/3600))
+MINUTES=$(((ELAPSED%3600)/60))
+SECONDS=$((ELAPSED%60))
 
-# ViT-Base
-# python scripts/train.py \
-#     experiment_name=${TRAIN_EXP_ID} \
-#     model.vit.embed_dim=768 \
-#     model.vit.depth=12 \
-#     model.vit.num_heads=12
+echo "=================================================="
+echo "Training Duration: ${DAYS}d ${HOURS}h ${MINUTES}m ${SECONDS}s"
+echo "End Time: $(date)"
+echo "=================================================="

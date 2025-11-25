@@ -39,10 +39,11 @@ checkpoint:
   resume_from: null  # null (fresh start) or full path to checkpoint from previous experiment
 
 early_stopping:
+  # Note: With knn_eval_frequency=10, patience=3 means 30 epochs without improvement
   patience: 2 # debugging
   # patience: 3
   min_delta: 0.0001 # debugging
-  # min_delta: 0.3
+  # min_delta: 0.003  # at least 0.3%p improvement
 
 # Logging
 logging:

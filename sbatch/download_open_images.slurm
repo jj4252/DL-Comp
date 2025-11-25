@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --time=00-12:00:00
 #SBATCH --mem=8GB
-#SBATCH --job-name=open_images
+#SBATCH --job-name=download_open_images
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
 
