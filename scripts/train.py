@@ -473,7 +473,7 @@ def train_one_epoch(
     return loss_meter.avg, global_step
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="ssl_train")
+@hydra.main(version_base=None, config_path="../configs", config_name="train")
 def main(cfg: DictConfig):
     """Main entry point (procedural training loop, no Trainer class)."""
     # ------------------------------------------------------------------
@@ -527,7 +527,7 @@ def main(cfg: DictConfig):
 
     # Checkpoint directory
     base_checkpoint_dir = Path(cfg.checkpoint.save_dir)
-    checkpoint_dir = base_checkpoint_dir / cfg.experiment_name
+    checkpoint_dir = base_checkpoint_dir / str(cfg.experiment_name)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     # Create training dataloader
@@ -788,13 +788,12 @@ def main(cfg: DictConfig):
 
 
 
-    default_final_epoch = cfg.training.num_epochs - 1
     if stopped_early and early_stop_epoch is not None:
         final_epoch_idx = early_stop_epoch
         final_ckpt_name = f"checkpoint_epoch_{early_stop_epoch + 1}.pth"
     else:
-        final_epoch_idx = default_final_epoch
-        final_ckpt_name = f"checkpoint_epoch_{default_final_epoch}.pth"
+        final_epoch_idx = cfg.training.num_epochs - 1
+        final_ckpt_name = f"checkpoint_epoch_{cfg.training.num_epochs}.pth"
 
     if is_main_process:
         if stopped_early and early_stop_epoch is not None:

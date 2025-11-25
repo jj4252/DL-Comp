@@ -8,6 +8,7 @@ data:
   data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/fall2025_dl/train
 
   # Image preprocessing
+  # TODO: double check if it's used
   image_size: 96  # Native resolution 96x96 - DO NOT CHANGE per competition rules
 
   # Data augmentation for SSL

@@ -33,8 +33,8 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
 export HYDRA_FULL_ERROR=1
 export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
 
-CUB200_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best
-MINI_IMAGE_NET_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best
+CUB200_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best2
+MINI_IMAGE_NET_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best2
 
 # eval on CUB-200 with linear probing
 python scripts/eval_submission.py --config-name=submission \

@@ -35,7 +35,7 @@ export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$P
 
 
 # ViT-Tiny
-# python scripts/eval.py \
+# python scripts/eval_cifar.py \
 #     experiment_name=${EVAL_EXP_ID} \
 #     data=cifar10 \
 #     model.vit.image_size=32 \
@@ -46,14 +46,14 @@ export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$P
 #     evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13201936/checkpoint_final.pth
 
 # ViT-Small
-python scripts/eval.py \
+python scripts/eval_cifar.py \
     experiment_name=${EVAL_EXP_ID} \
     data=cifar100 \
     evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13223123/checkpoint_epoch_118.pth \
     # evaluation.linear_probe_epochs=100
 
 # ViT-Base
-# python scripts/eval.py \
+# python scripts/eval_cifar.py \
 #     experiment_name=${EVAL_EXP_ID} \
 #     data=cifar10 \
 #     model.vit.embed_dim=768 \
