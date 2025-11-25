@@ -1,6 +1,7 @@
 """
 Main training script for self-supervised learning (DINO)
 """
+import json
 import math
 import os
 from pathlib import Path
@@ -11,11 +12,18 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from ssl_vision.data_loader import create_dataloader, get_transforms
+from ssl_vision.data_loader import (
+    create_dataloader,
+    get_transforms,
+    SubmissionDataset,
+    submission_collate_fn,
+    get_eval_transforms,
+)
 from ssl_vision.models import (
     create_dino_model,
     update_teacher,
@@ -24,6 +32,8 @@ from ssl_vision.models import (
 from ssl_vision.utils import (
     get_cosine_schedule_with_warmup,
     AverageMeter,
+    KNNClassifier,
+    extract_features,
 )
 
 
@@ -74,6 +84,51 @@ def create_dataloaders(
         world_size=world_size,
     )
     return train_loader
+
+
+def run_knn_evaluations(backbone, eval_loaders, device, k):
+    """Run k-NN evaluation for each dataset and return accuracies."""
+    results = {}
+    if not eval_loaders:
+        return results
+
+    for dataset_name, (train_loader, val_loader) in eval_loaders.items():
+        train_features, train_labels, _ = extract_features(backbone, train_loader, device)
+        val_features, val_labels, _ = extract_features(backbone, val_loader, device)
+
+        knn = KNNClassifier(k=k)
+        knn.train(train_features, train_labels)
+        results[dataset_name] = knn.evaluate(val_features, val_labels)
+
+    return results
+
+
+def update_best_checkpoint_symlinks(checkpoint_dir: Path, dataset_name: str, ranked_entries, top_k: int):
+    """Create symlinks for top-k checkpoints per dataset."""
+    if not ranked_entries:
+        return
+
+    best_dir = checkpoint_dir / f"best_{dataset_name}"
+    best_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clear previous links/files
+    for existing in best_dir.iterdir():
+        if existing.is_symlink() or existing.is_file():
+            existing.unlink()
+
+    for record in ranked_entries[:top_k]:
+        target = Path(record["checkpoint"])
+        if not target.exists():
+            print(f"[WARN] Cannot create symlink for missing checkpoint: {target}")
+            continue
+
+        link_path = best_dir / target.name
+        if link_path.exists() or link_path.is_symlink():
+            link_path.unlink()
+
+        os.symlink(target, link_path)
+
+    print(f"  Symlinks updated in {best_dir}")
 
 
 def create_optimizer_and_scheduler(cfg: DictConfig, student: nn.Module, train_loader):
@@ -323,7 +378,7 @@ def train_one_epoch(
 
     pbar = tqdm(
         train_loader,
-        desc=f"Epoch {epoch}",
+        desc=f"Epoch {epoch + 1}/{cfg.training.num_epochs}",
         disable=not is_main_process,
     )
 
@@ -464,6 +519,55 @@ def main(cfg: DictConfig):
         total_steps=total_training_steps,
     )
 
+
+    # create evaluation dataloaders for feature extraction for K-NN
+    eval_cfg = cfg.evaluation
+    eval_transform = get_eval_transforms()
+    eval_dataloaders = {}
+
+    for eval_data_cfg in getattr(eval_cfg, "data", []):
+        dataset_name = getattr(eval_data_cfg, "dataset_name", "eval_dataset")
+        train_split = getattr(eval_data_cfg, "train_split", "train")
+        val_split = getattr(eval_data_cfg, "val_split", "val")
+
+        eval_train_dataset = SubmissionDataset(
+            root_dir=eval_data_cfg.data_dir,
+            split=train_split,
+            transform=eval_transform,
+        )
+
+        eval_val_dataset = SubmissionDataset(
+            root_dir=eval_data_cfg.data_dir,
+            split=val_split,
+            transform=eval_transform,
+        )
+
+        eval_train_loader = DataLoader(
+            eval_train_dataset,
+            batch_size=eval_cfg.batch_size,
+            shuffle=False,
+            num_workers=cfg.training.num_workers,
+            pin_memory=True,
+            collate_fn=submission_collate_fn,
+        )
+
+        eval_val_loader = DataLoader(
+            eval_val_dataset,
+            batch_size=eval_cfg.batch_size,
+            shuffle=False,
+            num_workers=cfg.training.num_workers,
+            pin_memory=True,
+            collate_fn=submission_collate_fn,
+        )
+
+        eval_dataloaders[dataset_name] = (eval_train_loader, eval_val_loader)
+
+    eval_history = {name: [] for name in eval_dataloaders.keys()}
+    knn_eval_frequency = getattr(eval_cfg, "knn_eval_frequency", getattr(cfg.early_stopping, "eval_frequency", 10))
+    top_k_models = getattr(eval_cfg, "top_k_models", 5)
+
+
+
     student, teacher = create_models(cfg, device)
 
     optimizer, scheduler = create_optimizer_and_scheduler(cfg, student, train_loader)
@@ -538,10 +642,10 @@ def main(cfg: DictConfig):
         )
 
         # Save checkpoint (only on main process)
-        if is_main_process and ep % cfg.checkpoint.save_frequency == 0:
+        if is_main_process and (ep + 1) % cfg.checkpoint.save_frequency == 0:
             save_checkpoint(
                 checkpoint_dir=checkpoint_dir,
-                filename=f"checkpoint_epoch_{ep}.pth",
+                filename=f"checkpoint_epoch_{ep + 1}.pth",
                 epoch=ep,
                 global_step=global_step,
                 student=student,
@@ -554,11 +658,53 @@ def main(cfg: DictConfig):
         if is_main_process:
             print(f"Epoch {ep}: Loss = {avg_loss:.4f}")
 
+        should_eval_knn = bool(eval_dataloaders) and ((ep + 1) % knn_eval_frequency == 0)
+        if should_eval_knn and is_main_process:
+            knn_k = eval_cfg.knn_k
+            current_ckpt_name = f"checkpoint_epoch_{ep + 1}.pth"
+            current_ckpt_path = checkpoint_dir / current_ckpt_name
+
+            if not current_ckpt_path.exists():
+                save_checkpoint(
+                    checkpoint_dir=checkpoint_dir,
+                    filename=current_ckpt_name,
+                    epoch=ep,
+                    global_step=global_step,
+                    student=student,
+                    teacher=teacher,
+                    optimizer=optimizer,
+                    scheduler=scheduler,
+                    cfg=cfg,
+                )
+
+            print(f"\n[Eval] k-NN evaluation at epoch {ep + 1}")
+            prev_student_mode = student.training
+            student.eval()
+
+            knn_results = run_knn_evaluations(student.backbone, eval_dataloaders, device, knn_k)
+            for dataset_name, val_acc in knn_results.items():
+                eval_history[dataset_name].append(
+                    {
+                        "epoch": ep + 1,
+                        "accuracy": float(val_acc),
+                        "checkpoint": str(current_ckpt_path),
+                    }
+                )
+                print(f"  {dataset_name}: {val_acc * 100:.2f}% ({current_ckpt_path.name})")
+
+            if prev_student_mode:
+                student.train()
+
+
+
+
+
+
     # Save final checkpoint (only on main process)
     if is_main_process:
         save_checkpoint(
             checkpoint_dir=checkpoint_dir,
-            filename="checkpoint_final.pth",
+            filename=f"checkpoint_epoch_{cfg.training.num_epochs - 1}.pth",
             epoch=cfg.training.num_epochs - 1,
             global_step=global_step,
             student=student,
@@ -567,6 +713,25 @@ def main(cfg: DictConfig):
             scheduler=scheduler,
             cfg=cfg,
         )
+
+        if any(eval_history.values()):
+            print("\nTop k-NN checkpoints per dataset:")
+            summary = {}
+            for dataset_name, entries in eval_history.items():
+                if not entries:
+                    continue
+                ranked = sorted(entries, key=lambda e: e["accuracy"], reverse=True)
+                summary[dataset_name] = ranked
+                print(f"{dataset_name}:")
+                for rank_idx, record in enumerate(ranked[:top_k_models], start=1):
+                    acc = record["accuracy"] * 100
+                    print(f"  #{rank_idx} Epoch {record['epoch']} - {acc:.2f}% ({record['checkpoint']})")
+                update_best_checkpoint_symlinks(checkpoint_dir, dataset_name, ranked, top_k_models)
+
+            summary_path = checkpoint_dir / "knn_eval_history.json"
+            with open(summary_path, "w") as f:
+                json.dump(summary, f, indent=2)
+            print(f"\nFull k-NN history saved to: {summary_path}")
 
         print("Training completed!")
 

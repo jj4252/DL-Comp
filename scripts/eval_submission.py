@@ -14,17 +14,10 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, top_k_accuracy_score
 import pandas as pd
 
-from ssl_vision.data_loader import SubmissionDataset, get_eval_transforms
+from ssl_vision.data_loader import SubmissionDataset, get_eval_transforms, submission_collate_fn
 from ssl_vision.models import create_vision_transformer
 from ssl_vision.utils import extract_features, KNNClassifier
 
-
-def submission_collate_fn(batch):
-    """Custom collate function for SubmissionDataset that handles filenames"""
-    images = torch.stack([item[0] for item in batch])
-    labels = torch.tensor([item[1] for item in batch])
-    filenames = [item[2] for item in batch]
-    return images, labels, filenames
 
 
 def knn_evaluation(train_features, train_labels, test_features, test_labels, k=20, is_test_split=False):

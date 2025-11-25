@@ -4,6 +4,9 @@ defaults:
   - data: fall2025_deeplearning  # Main competition dataset
   - optimizer: adamw
   - scheduler: cosine
+  - evaluation/data@evaluation.data:
+    - cub200
+    - mini_imagenet
   - _self_
 
 # Experiment settings
@@ -35,6 +38,10 @@ checkpoint:
   save_frequency: 5 # every n epochs
   resume_from: null  # null (fresh start) or full path to checkpoint from previous experiment
 
+early_stopping:
+  patience: 3
+  min_delta: 0.3
+
 # Logging
 logging:
   log_dir: ./logs
@@ -45,6 +52,8 @@ evaluation:
   checkpoint_path: null # not used during training, full path to checkpoint for evaluation
   batch_size: 256
   results_dir: ./eval_results
+  knn_eval_frequency: 10
+  top_k_models: 5
 
   # k-NN evaluation
   knn_k: 20

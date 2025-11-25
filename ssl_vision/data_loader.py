@@ -389,6 +389,14 @@ def collate_fn(batch):
         raise
 
 
+def submission_collate_fn(batch):
+    """Custom collate function for SubmissionDataset that handles filenames"""
+    images = torch.stack([item[0] for item in batch])
+    labels = torch.tensor([item[1] for item in batch])
+    filenames = [item[2] for item in batch]
+    return images, labels, filenames
+
+
 def create_dataloader(
     dataset_name: str,
     split: str,

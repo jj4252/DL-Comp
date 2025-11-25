@@ -4,6 +4,7 @@
 Downloading subset of Open Images Dataset (validation and test are use for SSL training)
 
 ```bash
+# From the project root directory
 curl -L -O https://storage.googleapis.com/openimages/2018_04/validation/validation-images-with-rotation.csv
 curl -L -O https://storage.googleapis.com/openimages/2018_04/test/test-images-with-rotation.csv
 
