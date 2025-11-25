@@ -12,13 +12,13 @@
 #SBATCH --output="logs/%x/%j.out"
 #SBATCH --error=logs/%x/%j.err
 
-EXPERIMENT_ID=${SLURM_JOB_NAME}_${SLURM_JOB_ID}
+TRAIN_EXP_ID=${SLURM_JOB_ID}
 
 
 echo "=================================================="
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Job Name: ${SLURM_JOB_NAME}"
-echo "Experiment: ${EXPERIMENT_ID}"
+echo "Training Experiment ID: ${TRAIN_EXP_ID}"
 echo "Start Time: $(date)"
 echo "=================================================="
 
@@ -38,7 +38,7 @@ START_TIME=$(date +%s)
 # ViT-Small (default config)
 torchrun --standalone --nproc_per_node=$SLURM_NTASKS scripts/train.py \
   distributed.enabled=true \
-  experiment_name=${EXPERIMENT_ID}
+  experiment_name=${TRAIN_EXP_ID}
 
 # Print training duration
 END_TIME=$(date +%s)

@@ -17,24 +17,9 @@ from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from ssl_vision.data_loader import (
-    create_dataloader,
-    get_transforms,
-    SubmissionDataset,
-    submission_collate_fn,
-    get_eval_transforms,
-)
-from ssl_vision.models import (
-    create_dino_model,
-    update_teacher,
-    DINOLoss,
-)
-from ssl_vision.utils import (
-    get_cosine_schedule_with_warmup,
-    AverageMeter,
-    KNNClassifier,
-    extract_features,
-)
+from ssl_vision.data_loader import create_dataloader, get_transforms, SubmissionDataset, submission_collate_fn, get_eval_transforms
+from ssl_vision.models import create_dino_model, update_teacher, DINOLoss
+from ssl_vision.utils import get_cosine_schedule_with_warmup, AverageMeter, KNNClassifier, extract_features
 
 
 def create_models(cfg: DictConfig, device: torch.device):
@@ -61,24 +46,19 @@ def create_dataloaders(
     # Simple fast transforms - NO augmentations
     transform = get_transforms(cfg)
 
-    # Decide whether to use local files or HuggingFace datasets
-    use_local_files = getattr(cfg.data, "use_local_files", False)
     data_dir = getattr(cfg.data, "data_dir", None)
 
     train_loader = create_dataloader(
         dataset_name=cfg.data.dataset_name,
-        split=cfg.data.train_split,
         batch_size=cfg.training.batch_size,
         num_workers=cfg.training.num_workers,
         transform=transform,
         cache_dir=cfg.data.cache_dir,
         shuffle=True,
         pin_memory=cfg.training.pin_memory,
-        image_key=cfg.data.image_key,
         prefetch_factor=cfg.training.get("prefetch_factor", 4),
         persistent_workers=cfg.training.get("persistent_workers", True),
         data_dir=data_dir,
-        use_local_files=use_local_files,
         distributed=distributed,
         rank=rank,
         world_size=world_size,
@@ -129,6 +109,55 @@ def update_best_checkpoint_symlinks(checkpoint_dir: Path, dataset_name: str, ran
         os.symlink(target, link_path)
 
     print(f"  Symlinks updated in {best_dir}")
+
+
+def finalize_training(
+    *,
+    checkpoint_dir: Path,
+    final_epoch: int,
+    final_checkpoint_filename: str,
+    global_step: int,
+    student: nn.Module,
+    teacher: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
+    cfg: DictConfig,
+    eval_history,
+    top_k_models: int,
+):
+    """Persist the last checkpoint and summarize k-NN evaluations."""
+    save_checkpoint(
+        checkpoint_dir=checkpoint_dir,
+        filename=final_checkpoint_filename,
+        epoch=final_epoch,
+        global_step=global_step,
+        student=student,
+        teacher=teacher,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        cfg=cfg,
+    )
+
+    if any(eval_history.values()):
+        print("\nTop k-NN checkpoints per dataset:")
+        summary = {}
+        for dataset_name, entries in eval_history.items():
+            if not entries:
+                continue
+            ranked = sorted(entries, key=lambda e: e["accuracy"], reverse=True)
+            summary[dataset_name] = ranked
+            print(f"{dataset_name}:")
+            for rank_idx, record in enumerate(ranked[:top_k_models], start=1):
+                acc = record["accuracy"] * 100
+                print(f"  #{rank_idx} Epoch {record['epoch']} - {acc:.2f}% ({record['checkpoint']})")
+            update_best_checkpoint_symlinks(checkpoint_dir, dataset_name, ranked, top_k_models)
+
+        summary_path = checkpoint_dir / "knn_eval_history.json"
+        with open(summary_path, "w") as f:
+            json.dump(summary, f, indent=2)
+        print(f"\nFull k-NN history saved to: {summary_path}")
+
+    print("Training completed!")
 
 
 def create_optimizer_and_scheduler(cfg: DictConfig, student: nn.Module, train_loader):
@@ -444,7 +473,7 @@ def train_one_epoch(
     return loss_meter.avg, global_step
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="default")
+@hydra.main(version_base=None, config_path="../configs", config_name="ssl_train")
 def main(cfg: DictConfig):
     """Main entry point (procedural training loop, no Trainer class)."""
     # ------------------------------------------------------------------
@@ -525,8 +554,12 @@ def main(cfg: DictConfig):
     eval_transform = get_eval_transforms()
     eval_dataloaders = {}
 
-    for eval_data_cfg in getattr(eval_cfg, "data", []):
-        dataset_name = getattr(eval_data_cfg, "dataset_name", "eval_dataset")
+    eval_data_list = [eval_cfg.data[k] for k in sorted(eval_cfg.data.keys(), key=lambda x: int(x))]
+
+    for idx, eval_data_cfg in enumerate(eval_data_list):
+        dataset_name = eval_data_cfg.dataset_name
+        print(f"Loading evaluation dataset [{idx}]: {dataset_name}")
+        print(f"  Config: {eval_data_cfg}")
         train_split = getattr(eval_data_cfg, "train_split", "train")
         val_split = getattr(eval_data_cfg, "val_split", "val")
 
@@ -566,6 +599,19 @@ def main(cfg: DictConfig):
     knn_eval_frequency = getattr(eval_cfg, "knn_eval_frequency", getattr(cfg.early_stopping, "eval_frequency", 10))
     top_k_models = getattr(eval_cfg, "top_k_models", 5)
 
+    early_cfg = getattr(cfg, "early_stopping", {})
+    early_patience = max(0, int(getattr(early_cfg, "patience", 0)))
+    early_min_delta = float(getattr(early_cfg, "min_delta", 0.0))
+    early_stop_datasets = {
+        "cub200": "CUB-200",
+        "mini_imagenet": "mini-ImageNet",
+    }
+    early_stop_enabled = early_patience > 0 and bool(eval_dataloaders)
+    best_avg_knn = None
+    epochs_without_improve = 0
+    stopped_early = False
+    early_stop_epoch = None
+
 
 
     student, teacher = create_models(cfg, device)
@@ -600,9 +646,10 @@ def main(cfg: DictConfig):
                 False,
             ),
         )
+        compiled_student = torch.compile(ddp_student)
+    else:
+        compiled_student = torch.compile(student)
 
-    # Compile student and teacher
-    compiled_student = torch.compile(ddp_student)
     compiled_teacher = torch.compile(teacher)
 
 
@@ -624,6 +671,8 @@ def main(cfg: DictConfig):
 
     # Training loop
     for ep in range(epoch, cfg.training.num_epochs):
+        early_stop_triggered_this_epoch = False
+
         # Train for one epoch
         avg_loss, global_step = train_one_epoch(
             cfg=cfg,
@@ -656,7 +705,7 @@ def main(cfg: DictConfig):
             )
 
         if is_main_process:
-            print(f"Epoch {ep}: Loss = {avg_loss:.4f}")
+            print(f"Epoch {ep + 1}/{cfg.training.num_epochs}: Loss = {avg_loss:.4f}")
 
         should_eval_knn = bool(eval_dataloaders) and ((ep + 1) % knn_eval_frequency == 0)
         if should_eval_knn and is_main_process:
@@ -692,48 +741,77 @@ def main(cfg: DictConfig):
                 )
                 print(f"  {dataset_name}: {val_acc * 100:.2f}% ({current_ckpt_path.name})")
 
+            tracked_accs = []
+            missing_datasets = []
+            for dataset_key, friendly_name in early_stop_datasets.items():
+                if dataset_key in knn_results:
+                    tracked_accs.append(float(knn_results[dataset_key]))
+                else:
+                    missing_datasets.append(friendly_name)
+
+            avg_knn_acc = None
+            if tracked_accs and not missing_datasets:
+                avg_knn_acc = float(np.mean(tracked_accs))
+                print(f"  Avg (CUB-200 + mini-ImageNet): {avg_knn_acc * 100:.2f}%")
+            elif early_stop_enabled and missing_datasets:
+                missing_str = ", ".join(missing_datasets)
+                print(f"[EarlyStopping] Missing datasets for average: {missing_str}. Skipping update.")
+
+            if early_stop_enabled and avg_knn_acc is not None:
+                if best_avg_knn is None or avg_knn_acc >= best_avg_knn + early_min_delta:
+                    best_avg_knn = avg_knn_acc
+                    epochs_without_improve = 0
+                    print(f"[EarlyStopping] New best avg k-NN accuracy: {avg_knn_acc * 100:.2f}%")
+                else:
+                    epochs_without_improve += 1
+                    delta = avg_knn_acc - best_avg_knn
+                    print(
+                        f"[EarlyStopping] No improvement for {epochs_without_improve}/{early_patience} "
+                        f"evaluations (Δ={delta:+.4f})."
+                    )
+                    if epochs_without_improve >= early_patience:
+                        early_stop_triggered_this_epoch = True
+                        early_stop_epoch = ep
+                        print(f"[EarlyStopping] Patience exhausted at epoch {ep + 1}. Triggering early stop.")
+
             if prev_student_mode:
                 student.train()
 
+        stop_signal = torch.tensor(1 if early_stop_triggered_this_epoch else 0, device=device)
+        if use_distributed and dist.is_initialized():
+            dist.broadcast(stop_signal, src=0)
+        if stop_signal.item():
+            stopped_early = True
+            if early_stop_epoch is None:
+                early_stop_epoch = ep
+            break
 
 
 
+    default_final_epoch = cfg.training.num_epochs - 1
+    if stopped_early and early_stop_epoch is not None:
+        final_epoch_idx = early_stop_epoch
+        final_ckpt_name = f"checkpoint_epoch_{early_stop_epoch + 1}.pth"
+    else:
+        final_epoch_idx = default_final_epoch
+        final_ckpt_name = f"checkpoint_epoch_{default_final_epoch}.pth"
 
-
-    # Save final checkpoint (only on main process)
     if is_main_process:
-        save_checkpoint(
+        if stopped_early and early_stop_epoch is not None:
+            print(f"\n[EarlyStopping] Training stopped at epoch {early_stop_epoch + 1}.")
+        finalize_training(
             checkpoint_dir=checkpoint_dir,
-            filename=f"checkpoint_epoch_{cfg.training.num_epochs - 1}.pth",
-            epoch=cfg.training.num_epochs - 1,
+            final_epoch=final_epoch_idx,
+            final_checkpoint_filename=final_ckpt_name,
             global_step=global_step,
             student=student,
             teacher=teacher,
             optimizer=optimizer,
             scheduler=scheduler,
             cfg=cfg,
+            eval_history=eval_history,
+            top_k_models=top_k_models,
         )
-
-        if any(eval_history.values()):
-            print("\nTop k-NN checkpoints per dataset:")
-            summary = {}
-            for dataset_name, entries in eval_history.items():
-                if not entries:
-                    continue
-                ranked = sorted(entries, key=lambda e: e["accuracy"], reverse=True)
-                summary[dataset_name] = ranked
-                print(f"{dataset_name}:")
-                for rank_idx, record in enumerate(ranked[:top_k_models], start=1):
-                    acc = record["accuracy"] * 100
-                    print(f"  #{rank_idx} Epoch {record['epoch']} - {acc:.2f}% ({record['checkpoint']})")
-                update_best_checkpoint_symlinks(checkpoint_dir, dataset_name, ranked, top_k_models)
-
-            summary_path = checkpoint_dir / "knn_eval_history.json"
-            with open(summary_path, "w") as f:
-                json.dump(summary, f, indent=2)
-            print(f"\nFull k-NN history saved to: {summary_path}")
-
-        print("Training completed!")
 
     # Clean up distributed state
     if use_distributed and dist.is_initialized():

@@ -399,49 +399,25 @@ def submission_collate_fn(batch):
 
 def create_dataloader(
     dataset_name: str,
-    split: str,
     batch_size: int,
     num_workers: int,
     transform,
     cache_dir: Optional[str] = None,
     shuffle: bool = False,
     pin_memory: bool = True,
-    image_key: str = "image",
     prefetch_factor: int = 4,
     persistent_workers: bool = True,
     data_dir: Optional[str] = None,
-    use_local_files: bool = False,
     distributed: bool = False,
     rank: int = 0,
     world_size: Optional[int] = None,
 ) -> DataLoader:
     """
     Create a DataLoader for self-supervised learning with optimizations.
-
-    Two modes are supported:
-    - HuggingFace mode (default): uses `load_dataset(dataset_name, split=...)`
-    - Local mode: if `use_local_files=True`, loads images from `data_dir`
-      using `LocalImageDataset`. This is useful for large on-disk datasets
-      like the 500k competition images.
     """
-    if use_local_files:
-        if data_dir is None:
-            raise ValueError(
-                "create_dataloader: `data_dir` must be provided when `use_local_files=True`"
-            )
-        print(f"[create_dataloader] Using LocalImageDataset from: {data_dir}")
-        dataset = LocalImageDataset(
-            root_dir=data_dir,
-            transform=transform,
-        )
-    else:
-        dataset = HuggingFaceImageDataset(
-            dataset_name=dataset_name,
-            split=split,
-            transform=transform,
-            cache_dir=cache_dir,
-            image_key=image_key,
-        )
+    assert data_dir is not None, "data_dir must be provided"
+    print(f"[create_dataloader] Using LocalImageDataset from: {data_dir}")
+    dataset = LocalImageDataset(root_dir=data_dir, transform=transform)
 
     # Sampler / shuffling logic
     sampler = None

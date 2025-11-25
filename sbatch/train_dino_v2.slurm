@@ -12,13 +12,13 @@
 #SBATCH --output="logs/%x/%j.out"
 #SBATCH --error=logs/%x/%j.err
 
-EXPERIMENT_ID=${SLURM_JOB_NAME}_${SLURM_JOB_ID}
+TRAIN_EXP_ID=${SLURM_JOB_ID}
 
 
 echo "=================================================="
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Job Name: ${SLURM_JOB_NAME}"
-echo "Experiment: ${EXPERIMENT_ID}"
+echo "Training Experiment ID: ${TRAIN_EXP_ID}"
 echo "Start Time: $(date)"
 echo "=================================================="
 
@@ -36,19 +36,19 @@ export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$P
 
 # ViT-Tiny
 # python scripts/train.py \
-#     experiment_name=${EXPERIMENT_ID} \
+#     experiment_name=${TRAIN_EXP_ID} \
 #     model.vit.embed_dim=192 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=3
 
 # ViT-Small
 python scripts/train.py \
-    experiment_name=${EXPERIMENT_ID} \
+    experiment_name=${TRAIN_EXP_ID} \
     # checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth
 
 # ViT-Base
 # python scripts/train.py \
-#     experiment_name=${EXPERIMENT_ID} \
+#     experiment_name=${TRAIN_EXP_ID} \
 #     model.vit.embed_dim=768 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=12

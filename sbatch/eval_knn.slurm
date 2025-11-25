@@ -6,19 +6,18 @@
 #SBATCH --time=24:00:00
 #SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=eval_submission
+#SBATCH --job-name=eval_knn
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=dl5635@nyu.edu
 #SBATCH --output="logs/%x/%j.out"
 #SBATCH --error=logs/%x/%j.err
 
-EXPERIMENT_ID=${SLURM_JOB_NAME}_${SLURM_JOB_ID}
-
+EVAL_EXP_ID=${SLURM_JOB_ID}
 
 echo "=================================================="
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Job Name: ${SLURM_JOB_NAME}"
-echo "Experiment: ${EXPERIMENT_ID}"
+echo "Evaluation Experiment ID: ${EVAL_EXP_ID}"
 echo "Start Time: $(date)"
 echo "=================================================="
 
@@ -34,18 +33,19 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
 export HYDRA_FULL_ERROR=1
 export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
 
-BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13271099/best_cub200
+CUB200_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best
+MINI_IMAGE_NET_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best
 
 # eval on CUB-200 with linear probing
 python scripts/eval_submission.py --config-name=submission \
-    experiment_name=cub200_${EXPERIMENT_ID} \
-    data=cub200 \
-    evaluation.checkpoint_dir=${BEST_CKPT_DIR} \
-    evaluation.linear_probe_epochs=200
+    experiment_name=cub200_${EVAL_EXP_ID} \
+    method=knn \
+    'evaluation/data@evaluation.data.0=cub200' \
+    evaluation.checkpoint_dir=${CUB200_BEST_CKPT_DIR} \
 
 # eval on mini-ImageNet with linear probing
 python scripts/eval_submission.py --config-name=submission \
-    experiment_name=mini_imagenet_${EXPERIMENT_ID} \
-    data=mini_imagenet \
-    evaluation.checkpoint_dir=${BEST_CKPT_DIR} \
-    evaluation.linear_probe_epochs=200
+    experiment_name=mini_imagenet_${EVAL_EXP_ID} \
+    method=knn \
+    'evaluation/data@evaluation.data.0=mini_imagenet' \
+    evaluation.checkpoint_dir=${MINI_IMAGE_NET_BEST_CKPT_DIR} \

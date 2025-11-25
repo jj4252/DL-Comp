@@ -12,13 +12,12 @@
 #SBATCH --output="logs/%x/%j.out"
 #SBATCH --error=logs/%x/%j.err
 
-EXPERIMENT_ID=${SLURM_JOB_NAME}_${SLURM_JOB_ID}
-
+EVAL_EXP_ID=${SLURM_JOB_ID}
 
 echo "=================================================="
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Job Name: ${SLURM_JOB_NAME}"
-echo "Experiment: ${EXPERIMENT_ID}"
+echo "Evaluation Experiment ID: ${EVAL_EXP_ID}"
 echo "Start Time: $(date)"
 echo "=================================================="
 
@@ -37,7 +36,7 @@ export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$P
 
 # ViT-Tiny
 # python scripts/eval.py \
-#     experiment_name=${EXPERIMENT_ID} \
+#     experiment_name=${EVAL_EXP_ID} \
 #     data=cifar10 \
 #     model.vit.image_size=32 \
 #     model.vit.patch_size=4 \
@@ -48,14 +47,14 @@ export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$P
 
 # ViT-Small
 python scripts/eval.py \
-    experiment_name=${EXPERIMENT_ID} \
+    experiment_name=${EVAL_EXP_ID} \
     data=cifar100 \
     evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13223123/checkpoint_epoch_118.pth \
     # evaluation.linear_probe_epochs=100
 
 # ViT-Base
 # python scripts/eval.py \
-#     experiment_name=${EXPERIMENT_ID} \
+#     experiment_name=${EVAL_EXP_ID} \
 #     data=cifar10 \
 #     model.vit.embed_dim=768 \
 #     model.vit.depth=12 \

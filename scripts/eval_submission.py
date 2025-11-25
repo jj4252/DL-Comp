@@ -204,11 +204,15 @@ def extract_experiment_id(checkpoint_dir: Path) -> str:
     raise ValueError(f"Could not infer experiment ID from path: {checkpoint_dir}")
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="default")
+@hydra.main(version_base=None, config_path="../configs", config_name="submission")
 def main(cfg: DictConfig):
+    eval_cfg = cfg.evaluation
+    assert len(list(eval_cfg.data.keys())) == 1, "Only one dataset is supported for evaluation for now"
+
     """Main evaluation entry point"""
-    print("=" * 80)
-    print(f"{cfg.data.dataset_name} Submission Evaluation")
+    dataset_name = eval_cfg.data['0'].dataset_name
+    print(f"Dataset name: {dataset_name}")
+    print(f"{dataset_name} Submission Evaluation")
     print("=" * 80)
     print(OmegaConf.to_yaml(cfg))
     print("=" * 80)
@@ -241,28 +245,28 @@ def main(cfg: DictConfig):
     print(f"\nExperiment ID: {experiment_id}")
     print(f"\nFound {len(checkpoint_paths)} checkpoints in: {checkpoint_dir}")
     print(f"Evaluation method: {method_label}")
-    print(f"\nLoading {cfg.data.dataset_name} dataset from: {cfg.data.data_dir}")
+    print(f"\nLoading {dataset_name} dataset from: {eval_cfg.data['0'].data_dir}")
 
     # Evaluation transforms
     eval_transform = get_eval_transforms()
 
     # Load train split
     train_dataset = SubmissionDataset(
-        root_dir=cfg.data.data_dir,
+        root_dir=eval_cfg.data['0'].data_dir,
         split='train',
         transform=eval_transform,
     )
 
     # Load validation split
     val_dataset = SubmissionDataset(
-        root_dir=cfg.data.data_dir,
+        root_dir=eval_cfg.data['0'].data_dir,
         split='val',
         transform=eval_transform,
     )
 
     # Load test split
     test_dataset = SubmissionDataset(
-        root_dir=cfg.data.data_dir,
+        root_dir=eval_cfg.data['0'].data_dir,
         split='test',
         transform=eval_transform,
     )
@@ -307,10 +311,7 @@ def main(cfg: DictConfig):
     results_dir = Path(eval_cfg.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
     experiment_results_dir = results_dir / experiment_id
-    if experiment_results_dir.exists():
-        print(f"\nResults already exist at {experiment_results_dir}. Exiting.")
-        return
-    experiment_results_dir.mkdir(parents=True, exist_ok=False)
+    experiment_results_dir.mkdir(parents=True, exist_ok=True)
 
     train_size = len(train_dataset)
     val_size = len(val_dataset)
@@ -374,7 +375,7 @@ def main(cfg: DictConfig):
             )
             print("Generating predictions on test set using best linear model...")
             test_linear_pred = predict_with_classifier(linear_classifier, test_features, device)
-            pred_path = experiment_results_dir / f"{cfg.data.dataset_name}_{checkpoint_path.stem}.csv"
+            pred_path = experiment_results_dir / f"{dataset_name}_{checkpoint_path.stem}.csv"
             save_predictions_to_csv(test_linear_pred, test_filenames, pred_path)
             print(f"✓ Linear probing predictions saved to: {pred_path}")
         else:
@@ -407,15 +408,15 @@ def main(cfg: DictConfig):
         if res['prediction_path']:
             print(f"   Predictions: {res['prediction_path']}")
 
-    summary_filename = f"{cfg.data.dataset_name}_{method.lower()}_results.txt"
+    summary_filename = f"{eval_cfg.data['0'].dataset_name}_{method.lower()}_results.txt"
     summary_file = experiment_results_dir / summary_filename
     with open(summary_file, 'w') as f:
-        f.write(f"{cfg.data.dataset_name} Submission Evaluation Summary\n")
+        f.write(f"{eval_cfg.data['0'].dataset_name} Submission Evaluation Summary\n")
         f.write(f"{'='*60}\n")
         f.write(f"Checkpoint directory: {checkpoint_dir}\n")
         f.write(f"Evaluation method: {method_label}\n")
         f.write(f"Checkpoint count: {len(checkpoint_paths)}\n")
-        f.write(f"Dataset: {cfg.data.data_dir}\n")
+        f.write(f"Dataset: {eval_cfg.data['0'].data_dir}\n")
         if num_classes is not None:
             f.write(f"Number of classes: {num_classes}\n")
         if feature_dim is not None:

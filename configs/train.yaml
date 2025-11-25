@@ -1,12 +1,11 @@
 # Default configuration
 defaults:
   - model: dino_v2
-  - data: fall2025_deeplearning  # Main competition dataset
+  - data: open_images  # Main competition dataset
   - optimizer: adamw
   - scheduler: cosine
-  - evaluation/data@evaluation.data:
-    - cub200
-    - mini_imagenet
+  - evaluation/data@evaluation.data.0: cub200
+  - evaluation/data@evaluation.data.1: mini_imagenet
   - _self_
 
 # Experiment settings
@@ -15,7 +14,7 @@ seed: 42
 
 # Training settings
 training:
-  num_epochs: 200
+  num_epochs: 250
   batch_size: 256 # batch size per GPU
   num_workers: 16
   pin_memory: true
@@ -35,29 +34,25 @@ distributed:
 # Checkpointing
 checkpoint:
   save_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints  # Base directory (experiment_name is appended)
-  save_frequency: 5 # every n epochs
+  save_frequency: 1 # every n epochs (debugging)
+  # save_frequency: 5 # every n epochs
   resume_from: null  # null (fresh start) or full path to checkpoint from previous experiment
 
 early_stopping:
-  patience: 3
-  min_delta: 0.3
+  patience: 2 # debugging
+  # patience: 3
+  min_delta: 0.0001 # debugging
+  # min_delta: 0.3
 
 # Logging
 logging:
   log_dir: ./logs
   log_frequency: 100
 
-# Evaluation
+# K-NN Evaluation
 evaluation:
-  checkpoint_path: null # not used during training, full path to checkpoint for evaluation
   batch_size: 256
-  results_dir: ./eval_results
-  knn_eval_frequency: 10
+  knn_eval_frequency: 2 # debugging
+  # knn_eval_frequency: 10
   top_k_models: 5
-
-  # k-NN evaluation
   knn_k: 20
-
-  # Linear probing
-  linear_probe_epochs: 1000
-  linear_probe_lr: 0.001
