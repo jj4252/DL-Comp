@@ -1,7 +1,7 @@
 # Default configuration
 defaults:
   - model: dino_v2
-  - data: open_images  # Main competition dataset
+  - data: fall2025_deeplearning  # Main competition dataset
   - optimizer: adamw
   - scheduler: cosine
   - evaluation/data@evaluation.data.0: cub200

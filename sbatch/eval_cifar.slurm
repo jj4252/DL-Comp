@@ -34,17 +34,6 @@ export HYDRA_FULL_ERROR=1
 export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
 
 
-# ViT-Tiny
-# python scripts/eval_cifar.py \
-#     experiment_name=${EVAL_EXP_ID} \
-#     data=cifar10 \
-#     model.vit.image_size=32 \
-#     model.vit.patch_size=4 \
-#     model.vit.embed_dim=192 \
-#     model.vit.depth=12 \
-#     model.vit.num_heads=3 \
-#     evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13201936/checkpoint_final.pth
-
 # ViT-Small
 python scripts/eval_cifar.py \
     experiment_name=${EVAL_EXP_ID} \

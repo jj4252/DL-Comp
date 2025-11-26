@@ -38,13 +38,6 @@ export OMP_NUM_THREADS=1
 export OMP_PROC_BIND=CLOSE
 export OMP_SCHEDULE=STATIC
 
-# ViT-Tiny
-# python scripts/train.py \
-#     experiment_name=${TRAIN_EXP_ID} \
-#     model.vit.embed_dim=192 \
-#     model.vit.depth=12 \
-#     model.vit.num_heads=3
-
 # ViT-Small
 python scripts/train.py \
     experiment_name=${TRAIN_EXP_ID} \
