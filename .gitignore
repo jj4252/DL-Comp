@@ -35,9 +35,8 @@ env/
 # VS Code
 .vscode/
 
-# Data and cache
-data
-!configs/data/
+# Data (only at the project root) and cache
+/data
 *.csv
 *.h5
 *.hdf5

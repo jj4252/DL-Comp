@@ -1,0 +1,12 @@
+dataset_name: sun397
+cache_dir: /gpfs/scratch/dl5635/.cache
+data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/SUN397
+
+image_size: 96  # Match the model's input size
+
+train_split: train
+val_split: val
+test_split: test
+
+# No augmentation (only for evaluation)
+augmentation: null
