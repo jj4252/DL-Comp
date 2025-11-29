@@ -4,6 +4,7 @@ defaults:
   - model: dino_v2
   - data@data.0: fall2025_deeplearning
   - data@data.1: open_images
+  - data@data.2: na_birds
   - optimizer: adamw
   - scheduler: cosine
   - evaluation/data@evaluation.data.0: cub200
