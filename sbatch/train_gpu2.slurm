@@ -2,8 +2,8 @@
 #SBATCH --partition=a100_short
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1    # no need to set to 2 since using torchrun
-#SBATCH --cpus-per-task=16  # DataLoader in each process gets 8 num_workers (curernt setting) -> 8 * 2 (worker processes) + 2 (main processes) = 18
-#SBATCH --time=2-10:00:00
+#SBATCH --cpus-per-task=32    # 2 GPUs settings: cpus-per-task == 2 * num_workers
+#SBATCH --time=2-20:00:00
 #SBATCH --mem=256GB
 #SBATCH --gres=gpu:2
 #SBATCH --job-name=train_gpu2
@@ -40,19 +40,23 @@ export TORCHRUN_PROC_NUM=2
 START_TIME=$(date +%s)
 
 # ViT-Small (default config)
-# torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
-#   distributed.enabled=true \
-#   experiment_name=${TRAIN_EXP_ID}
-
-# ViT-Base (global batch size = 256, 768 dim)
 torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
   distributed.enabled=true \
-  experiment_name=${TRAIN_EXP_ID} \
-  model.vit.embed_dim=768 \
-  model.vit.depth=12 \
-  model.vit.num_heads=12 \
-  training.batch_size=192 \
-  training.num_epochs=200
+  experiment_name=${TRAIN_EXP_ID}
+
+# ViT-Base (global batch size = 384, 768 dim)
+# reduced learing rate following a linear scaling rule
+# scheduler.warmup_epochs = 30 (good for larger model?)
+# torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
+#   distributed.enabled=true \
+#   experiment_name=${TRAIN_EXP_ID} \
+#   model.vit.embed_dim=768 \
+#   model.vit.depth=12 \
+#   model.vit.num_heads=12 \
+#   training.batch_size=192 \
+#   training.num_epochs=210 \
+#   optimizer.lr=0.000375 \
+#   scheduler.warmup_epochs=30
 
 
 # Print training duration

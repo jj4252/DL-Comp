@@ -1,22 +1,20 @@
-# @package _global_
 # Main competition dataset - 500K images from tsbpp/fall2025_deeplearning
-data:
-  # Original HuggingFace dataset identifier (kept for reference / optional use)
-  dataset_name: tsbpp/fall2025_deeplearning
-  cache_dir: /gpfs/scratch/dl5635/.cache
+# Original HuggingFace dataset identifier (kept for reference / optional use)
+dataset_name: tsbpp/fall2025_deeplearning
+cache_dir: /gpfs/scratch/dl5635/.cache
 
-  data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/fall2025_dl/train
+data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/fall2025_dl/train
 
-  # Image preprocessing
-  # TODO: double check if it's used
-  image_size: 96  # Native resolution 96x96 - DO NOT CHANGE per competition rules
+# Image preprocessing
+# TODO: double check if it's used
+image_size: 96  # Native resolution 96x96 - DO NOT CHANGE per competition rules
 
-  # Data augmentation for SSL
-  # backward compatibility with previous config
-  # augmentation:
-  #   color_jitter: 0.4
-  #   grayscale_prob: 0.2
-  #   # [p_first_global, p_second_global, p_local]
-  #   gaussian_blur_prob: [1.0, 0.1, 0.5]
-  #   solarization_prob: [0.0, 0.2, 0.0]
-  #   horizontal_flip_prob: 0.5
+# Data augmentation for SSL
+# backward compatibility with previous config
+augmentation:
+  color_jitter: 0.4
+  grayscale_prob: 0.2
+  # [p_first_global, p_second_global, p_local]
+  gaussian_blur_prob: [1.0, 0.1, 0.5]
+  solarization_prob: [0.0, 0.2, 0.0]
+  horizontal_flip_prob: 0.5

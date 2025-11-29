@@ -18,9 +18,9 @@ cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 mkdir -p logs/${SLURM_JOB_NAME}
 
 
-IMAGE_LIST_FILE=data/Open_Images/train_sampled_200k.txt
-DATA_DIR=data/Open_Images/train/raw
-DOWNSAMPLE_DIR=data/Open_Images/train/downsampled
+IMAGE_LIST_FILE=data/Open_Images/train_sampled_600k.txt
+DATA_DIR=data/Open_Images/train/raw_600k
+DOWNSAMPLE_DIR=data/Open_Images/train/downsampled_600k
 
 python scripts/download_open_images.py \
     ${IMAGE_LIST_FILE} \

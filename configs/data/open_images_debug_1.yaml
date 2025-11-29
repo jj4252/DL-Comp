@@ -1,6 +1,7 @@
-dataset_name: open_images
+# this dataset is used for debugging purposes
+dataset_name: open_images_debug_1
 cache_dir: /gpfs/scratch/dl5635/.cache
-data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_600k # 188,645 images (not 600K)
+data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_200k_debug_1 # 23703 images (not 200K)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size

@@ -1,25 +1,25 @@
+# debug mode on 2 multi-GPU training
 # @package _global_
 # Default configuration
 defaults:
   - model: dino_v2
-  - data@data.0: fall2025_deeplearning
-  - data@data.1: open_images
+  - data@data.0: open_images_debug_1
+  - data@data.1: open_images_debug_2
   - optimizer: adamw
   - scheduler: cosine
   - evaluation/data@evaluation.data.0: cub200
-  - evaluation/data@evaluation.data.1: mini_imagenet
-  - evaluation/data@evaluation.data.2: sun397
+  - evaluation/data@evaluation.data.1: sun397
   - _self_
 
 # Experiment settings
-experiment_name: ssl_vision_training
+experiment_name: train_debug
 seed: 42
 
 # Training settings
 training:
-  num_epochs: 250
+  num_epochs: 50
   batch_size: 256 # batch size per GPU (optimized for ViT-Small, 2 A100 GPUs)
-  num_workers: 16  # optimized for 2 multi-GPU trainnig (2 processes per GPU -> spawn 16 for each process -> total 32 worker processes)
+  num_workers: 16
   pin_memory: true
   gradient_accumulation_steps: 1
   mixed_precision: true
@@ -27,9 +27,9 @@ training:
   prefetch_factor: 2  # Prefetch more batches (2x default) to keep GPU fed
   persistent_workers: true  # Keep workers alive between epochs
 
-# Distributed training
+# Distributed training (default: enabled)
 distributed:
-  enabled: false         # Set to true when launching with torchrun on multiple GPUs
+  enabled: true         # Set to true when launching with torchrun on multiple GPUs
   backend: nccl
   init_method: env://
   find_unused_parameters: false
@@ -37,22 +37,23 @@ distributed:
 # Checkpointing
 checkpoint:
   save_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints  # Base directory (experiment_name is appended)
-  save_frequency: 5 # every n epochs
+  save_frequency: 1 # every n epochs
   resume_from: null  # null (fresh start) or full path to checkpoint from previous experiment
 
+# change these config and 'evaluation.knn_eval_frequency' to debug early stopping
 early_stopping:
-  # Note: With knn_eval_frequency=10, patience=3 means 30 epochs without improvement
+  # Stops when ALL datasets fail to improve by min_delta for patience times (non-consecutive)
   patience: 3
-  min_delta: 0.003  # at least 0.3%p improvement
+  min_delta: 0.005  # at least 0.5%p improvement
 
 # Logging
 logging:
   log_dir: ./logs
-  log_frequency: 100
+  log_frequency: 5
 
 # K-NN Evaluation
 evaluation:
   batch_size: 256
-  knn_eval_frequency: 10
+  knn_eval_frequency: 2
   top_k_models: 5
   knn_k: 20

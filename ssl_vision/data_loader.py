@@ -14,7 +14,7 @@ from omegaconf import DictConfig
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 from datasets import load_dataset
@@ -499,7 +499,7 @@ def submission_collate_fn(batch):
 
 
 def create_dataloader(
-    dataset_name: str,
+    dataset_name,  # str or List[str]
     batch_size: int,
     num_workers: int,
     transform,
@@ -508,28 +508,53 @@ def create_dataloader(
     pin_memory: bool = True,
     prefetch_factor: int = 4,
     persistent_workers: bool = True,
-    data_dir: Optional[str] = None,
+    data_dir = None,  # str or List[str]
     distributed: bool = False,
     rank: int = 0,
     world_size: Optional[int] = None,
 ) -> DataLoader:
     """
     Create a DataLoader for self-supervised learning with optimizations.
+
+    Args:
+        dataset_name: Single dataset name (str) or list of dataset names (List[str])
+        data_dir: Single data directory (str) or list of data directories (List[str])
+
+    When multiple data_dirs are provided, creates a ConcatDataset combining all datasets.
     """
     assert data_dir is not None, "data_dir must be provided"
-    print(f"[create_dataloader] Using LocalImageDataset from: {data_dir}")
-    dataset = LocalImageDataset(root_dir=data_dir, transform=transform)
+
+    # Convert single values to lists for uniform handling
+    if isinstance(data_dir, str):
+        data_dir = [data_dir]
+    if isinstance(dataset_name, str):
+        dataset_name = [dataset_name]
+
+    # Create individual datasets
+    all_datasets = []
+    for idx, (name, dir_path) in enumerate(zip(dataset_name, data_dir)):
+        print(f"[create_dataloader] Loading dataset {idx} ({name}) from: {dir_path}")
+        dataset = LocalImageDataset(root_dir=dir_path, transform=transform)
+        all_datasets.append(dataset)
+
+    # Combine datasets if multiple
+    if len(all_datasets) == 1:
+        combined_dataset = all_datasets[0]
+    else:
+        combined_dataset = ConcatDataset(all_datasets)
+        print(f"[create_dataloader] Combined {len(all_datasets)} datasets: {dataset_name}")
+        print(f"[create_dataloader] Total training samples: {len(combined_dataset)}")
 
     # Sampler / shuffling logic
     sampler = None
     if distributed:
         if world_size is None:
             raise ValueError("world_size must be provided when distributed=True")
-        sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, drop_last=True)
+        sampler = DistributedSampler(combined_dataset, num_replicas=world_size, rank=rank, shuffle=shuffle, drop_last=True)
         shuffle = False
 
     dataloader = DataLoader(
-        dataset,
+        combined_dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         sampler=sampler,
@@ -573,10 +598,10 @@ def get_transforms(cfg):
             local_crops_number=dino_cfg.local_crops_number,
             global_crops_size=image_size,
             local_crops_size=local_size,
-            color_jitter=cfg.data.augmentation.color_jitter,
-            grayscale_prob=cfg.data.augmentation.grayscale_prob,
-            gaussian_blur_prob=list(cfg.data.augmentation.gaussian_blur_prob),
-            solarization_prob=list(cfg.data.augmentation.solarization_prob),
+            color_jitter=cfg.data['0'].augmentation.color_jitter,
+            grayscale_prob=cfg.data['0'].augmentation.grayscale_prob,
+            gaussian_blur_prob=list(cfg.data['0'].augmentation.gaussian_blur_prob),
+            solarization_prob=list(cfg.data['0'].augmentation.solarization_prob),
         )
 
     return transform

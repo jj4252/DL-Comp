@@ -13,6 +13,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.nn.attention import sdpa_kernel, SDPBackend
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -46,27 +47,47 @@ def create_dataloaders(
     rank: int,
     world_size: int,
 ):
-    """Create training dataloader (optionally distributed)."""
-    # Simple fast transforms - NO augmentations
+    """Create training dataloader from multiple datasets combined (optionally distributed)."""
+    # Get transforms (same for all datasets)
     transform = get_transforms(cfg)
 
-    data_dir = getattr(cfg.data, "data_dir", None)
+    # Collect dataset names and data directories
+    dataset_names = []
+    data_dirs = []
 
+    # Iterate through all configured datasets (cfg.data is now a dict with keys '0', '1', etc.)
+    for key in sorted(cfg.data.keys()):
+        dataset_cfg = cfg.data[key]
+        data_dir = getattr(dataset_cfg, "data_dir", None)
+        dataset_name = getattr(dataset_cfg, "dataset_name", f"dataset_{key}")
+
+        if data_dir is None:
+            print(f"[WARN] Skipping dataset {key}: no data_dir specified")
+            continue
+
+        dataset_names.append(dataset_name)
+        data_dirs.append(data_dir)
+
+    if not data_dirs:
+        raise ValueError("No datasets found in cfg.data")
+
+    # Use create_dataloader to handle single or multiple datasets
     train_loader = create_dataloader(
-        dataset_name=cfg.data.dataset_name,
+        dataset_name=dataset_names,
         batch_size=cfg.training.batch_size,
         num_workers=cfg.training.num_workers,
         transform=transform,
-        cache_dir=cfg.data.cache_dir,
+        cache_dir=getattr(cfg.data.get('0'), 'cache_dir', None),  # Use first dataset's cache_dir
         shuffle=True,
         pin_memory=cfg.training.pin_memory,
         prefetch_factor=cfg.training.get("prefetch_factor", 4),
         persistent_workers=cfg.training.get("persistent_workers", True),
-        data_dir=data_dir,
+        data_dir=data_dirs,
         distributed=distributed,
         rank=rank,
         world_size=world_size,
     )
+
     return train_loader
 
 
@@ -419,13 +440,14 @@ def train_one_epoch(
         # Images is already a list of 2 views from collate_fn
         images = [img.to(device, non_blocking=True) for img in images]
 
-        # Forward pass with mixed precision
-        with torch.cuda.amp.autocast(enabled=cfg.training.mixed_precision, dtype=torch.bfloat16):
-            student_output = student(images)    # forward all views
-            teacher_output = teacher(images[:2]) # forward only 2 global views
+        # Forward pass with mixed precision and Flash Attention
+        with torch.autocast("cuda", enabled=cfg.training.mixed_precision, dtype=torch.bfloat16):
+            with sdpa_kernel(SDPBackend.FLASH_ATTENTION):
+                student_output = student(images)    # forward all views
+                teacher_output = teacher(images[:2]) # forward only 2 global views
 
-            # Compute loss
-            loss = criterion(student_output, teacher_output, epoch)
+                # Compute loss
+                loss = criterion(student_output, teacher_output, epoch)
 
         # Backward pass
         optimizer.zero_grad()
