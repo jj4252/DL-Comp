@@ -16,29 +16,13 @@ OUTPUT_DIR="data/fall2025_dl/train"
 # Option 2: Manual list - update this with actual filenames from:
 # https://huggingface.co/datasets/tsbpp/fall2025_deeplearning/tree/main
 
-# For now, using a pattern-based approach - will try common patterns
-# You may need to check the HuggingFace repo and update the list
+# Zip files to download (5 files total)
 ZIP_PATTERNS=(
-    "cc3m_96px_part01.zip"
-    "cc3m_96px_part02.zip"
-    "cc3m_96px_part03.zip"
-    "cc3m_96px_part04.zip"
-    "cc3m_96px_part05.zip"
-    "cc3m_96px_part06.zip"
-    "cc3m_96px_part07.zip"
-    "cc3m_96px_part08.zip"
-    "cc3m_96px_part09.zip"
-    "cc3m_96px_part10.zip"
-    "cc3m_96px_part11.zip"
-    "cc3m_96px_part12.zip"
-    "cc3m_96px_part13.zip"
-    "cc3m_96px_part14.zip"
-    "cc3m_96px_part15.zip"
-    "cc3m_96px_part16.zip"
-    "cc3m_96px_part17.zip"
-    "cc3m_96px_part18.zip"
-    "cc3m_96px_part19.zip"
-    "cc3m_96px_part20.zip"
+    "cc3m_96px_part1.zip"
+    "cc3m_96px_part2.zip"
+    "cc3m_96px_part3.zip"
+    "cc3m_96px_part4.zip"
+    "cc3m_96px_part5.zip"
 )
 
 echo "=========================================="
@@ -108,7 +92,7 @@ echo "Successfully downloaded: $DOWNLOADED_COUNT"
 echo "Failed: $FAILED_COUNT"
 echo ""
 
-# Check if we have any zip files
+# Check if we have any zip files (matches both part1-part5 and part01-part20 patterns)
 ACTUAL_ZIP_FILES=$(ls cc3m_96px_part*.zip 2>/dev/null | wc -l)
 
 if [ "$ACTUAL_ZIP_FILES" -eq 0 ]; then
