@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=cpu_short
+#SBATCH --partition=n2c48m24
 #SBATCH --account=ds_ga_3001_003-2025fa
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
