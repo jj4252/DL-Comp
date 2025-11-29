@@ -610,17 +610,28 @@ def main(cfg: DictConfig):
         train_split = getattr(eval_data_cfg, "train_split", "train")
         val_split = getattr(eval_data_cfg, "val_split", "val")
 
-        eval_train_dataset = SubmissionDataset(
-            root_dir=eval_data_cfg.data_dir,
-            split=train_split,
-            transform=eval_transform,
-        )
+        # Check if dataset directory exists
+        if not Path(eval_data_cfg.data_dir).exists():
+            print(f"⚠️  Warning: Evaluation dataset directory not found: {eval_data_cfg.data_dir}")
+            print(f"   Skipping {dataset_name} evaluation. Training will continue without this dataset.")
+            continue
 
-        eval_val_dataset = SubmissionDataset(
-            root_dir=eval_data_cfg.data_dir,
-            split=val_split,
-            transform=eval_transform,
-        )
+        try:
+            eval_train_dataset = SubmissionDataset(
+                root_dir=eval_data_cfg.data_dir,
+                split=train_split,
+                transform=eval_transform,
+            )
+
+            eval_val_dataset = SubmissionDataset(
+                root_dir=eval_data_cfg.data_dir,
+                split=val_split,
+                transform=eval_transform,
+            )
+        except FileNotFoundError as e:
+            print(f"⚠️  Warning: Evaluation dataset files not found for {dataset_name}: {e}")
+            print(f"   Skipping {dataset_name} evaluation. Training will continue without this dataset.")
+            continue
 
         eval_train_loader = DataLoader(
             eval_train_dataset,

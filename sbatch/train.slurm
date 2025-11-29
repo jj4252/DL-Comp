@@ -25,7 +25,7 @@ echo "Start Time: $(date)"
 echo "=================================================="
 
 
-module load cuda/12.6
+module load cuda/12.6 2>/dev/null || echo "Note: module command not available, assuming CUDA is available"
 VENV_DIR=/scratch/jj4252/venvs/distill_1114
 cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp
 source "$VENV_DIR/bin/activate"
@@ -39,9 +39,11 @@ export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
 
 # ViT-Small
 python scripts/train.py \
-    # checkpoint.resume_from=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth \
+    --config-path /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/configs \
     training.num_workers=16 \
     experiment_name=${TRAIN_EXP_ID}
+
+# To resume from checkpoint, add: checkpoint.resume_from=/path/to/checkpoint.pth
 
 # ViT-Base
 # python scripts/train.py \
