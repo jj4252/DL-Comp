@@ -19,5 +19,5 @@ opencv-python>=4.11.0
 accelerate>=0.24.0
 ipython>=8.12.0
 jupyter>=1.0.0
-notebook3>=6.5.0
+notebook>=6.5.0
 boto3   # needed for downloading Open Images Dataset
