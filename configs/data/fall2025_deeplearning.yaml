@@ -5,7 +5,7 @@ data:
   dataset_name: tsbpp/fall2025_deeplearning
   cache_dir: /scratch/jj4252/Nov_14_distill/cache_images
 
-  data_dir: /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/data/fall2025_dl/train
+  data_dir: /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/data/fall2025_dl/train/train
 
   # Image preprocessing
   # TODO: double check if it's used
