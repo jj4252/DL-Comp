@@ -25,7 +25,7 @@ echo "Start Time: $(date)"
 echo "=================================================="
 
 
-module load cuda/12.6
+module load cuda/12.6 2>/dev/null || echo "Note: module command not available, assuming CUDA is available"
 VENV_DIR=/scratch/jj4252/venvs/distill_1114
 cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp
 source "$VENV_DIR/bin/activate"
@@ -39,14 +39,12 @@ export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
 
 # MoCo V3 Training with ViT-Small
 python scripts/train.py \
-    --config-path configs \
     --config-name train_moco \
     training.num_workers=16 \
     experiment_name=${TRAIN_EXP_ID}
 
 # MoCo V3 Training with ViT-Base (uncomment to use)
 # python scripts/train.py \
-#     --config-path configs \
 #     --config-name train_moco \
 #     experiment_name=${TRAIN_EXP_ID} \
 #     training.num_workers=16 \
