@@ -353,21 +353,28 @@ class LocalImageDataset(Dataset):
 
     def __getitem__(self, idx):
         path = self.samples[idx]
+        max_tries = 10
 
-        try:
-            # Try to load the original image
-            with Image.open(path) as img:
-                image = img.convert("RGB")
-        except (UnidentifiedImageError, OSError) as e:
-            # If corrupted, move to the next index (wrap around at the end)
-            print(f"[WARN] Skipping corrupted image at index {idx}: {path} ({e})")
-            idx = (idx + 1) % len(self.samples)
-            path = self.samples[idx]
-            # Assume this one is fine
-            with Image.open(path) as img:
-                image = img.convert("RGB")
+        for attempt in range(max_tries):
+            try:
+                # Try to load the image
+                with Image.open(path) as img:
+                    image = img.convert("RGB")
+                break  # Success, exit the retry loop
+            except (UnidentifiedImageError, OSError) as e:
+                # If corrupted, move to the next index (wrap around at the end)
+                print(f"[WARN] Skipping corrupted image at index {idx}: {path} ({e})")
+                idx = (idx + 1) % len(self.samples)
+                path = self.samples[idx]
 
-    # Apply transformation (may be MultiCropTransform)
+                # If we've exhausted all attempts, raise an error
+                if attempt == max_tries - 1:
+                    raise RuntimeError(
+                        f"Failed to load a valid image after {max_tries} attempts. "
+                        f"Dataset may have too many corrupted images."
+                    )
+
+        # Apply transformation (may be MultiCropTransform)
         if self.transform:
             image = self.transform(image)
 

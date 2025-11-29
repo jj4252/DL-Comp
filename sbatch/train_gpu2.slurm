@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1    # no need to set to 2 since using torchrun
 #SBATCH --cpus-per-task=32    # 2 GPUs settings: cpus-per-task == 2 * num_workers
-#SBATCH --time=2-20:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --mem=256GB
 #SBATCH --gres=gpu:2
 #SBATCH --job-name=train_gpu2
