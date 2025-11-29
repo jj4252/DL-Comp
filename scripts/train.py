@@ -723,7 +723,11 @@ def main(cfg: DictConfig):
     else:
         compiled_student = torch.compile(student)
 
-    compiled_teacher = torch.compile(teacher)
+    # Compile teacher only for DINO models (MoCo V3 does not use a separate teacher)
+    if teacher is not None and cfg.model.name in ["dino_v2", "dino_v3"]:
+        compiled_teacher = torch.compile(teacher)
+    else:
+        compiled_teacher = teacher
 
 
     # Logging (after resume so we have resume_info)
