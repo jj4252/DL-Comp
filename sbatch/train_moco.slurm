@@ -40,14 +40,14 @@ export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
 # MoCo V3 Training with ViT-Small
 python scripts/train.py \
     --config-name train_moco \
-    training.num_workers=16 \
+    training.num_workers=12 \
     experiment_name=${TRAIN_EXP_ID}
 
 # MoCo V3 Training with ViT-Base (uncomment to use)
 # python scripts/train.py \
 #     --config-name train_moco \
 #     experiment_name=${TRAIN_EXP_ID} \
-#     training.num_workers=16 \
+#     training.num_workers=12 \
 #     model.vit.embed_dim=768 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=12

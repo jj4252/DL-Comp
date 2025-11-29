@@ -678,12 +678,15 @@ def main(cfg: DictConfig):
     # Log model parameters
     if is_main_process:
         student_params = count_parameters(student)
-        teacher_params = count_parameters(teacher)
         print(f"\n{'=' * 80}")
         print("Model Parameters")
         print(f"{'=' * 80}")
         print(f"Student model: {student_params:,} parameters")
-        print(f"Teacher model: {teacher_params:,} parameters")
+        if teacher is not None:
+            teacher_params = count_parameters(teacher)
+            print(f"Teacher model: {teacher_params:,} parameters")
+        else:
+            print(f"Teacher model: N/A (MoCo V3 - uses momentum encoder)")
         print(f"{'=' * 80}\n")
 
     optimizer, scheduler = create_optimizer_and_scheduler(cfg, student, train_loader)
