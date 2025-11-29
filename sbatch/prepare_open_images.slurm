@@ -27,7 +27,7 @@ python scripts/download_open_images.py \
     --download_folder=${DATA_DIR} \
     --num_processes=${SLURM_CPUS_PER_TASK}
 
-python scripts/downsample.py \
+python scripts/downsample_open_images.py \
     --image_list_file=${IMAGE_LIST_FILE} \
     --data_dir=${DATA_DIR} \
     --output_dir=${DOWNSAMPLE_DIR} \

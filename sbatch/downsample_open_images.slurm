@@ -19,7 +19,7 @@ IMAGE_LIST_FILE=data/Open_Images/train_sampled_200k.txt
 DATA_DIR=data/Open_Images/train/raw
 OUTPUT_DIR=data/Open_Images/train/downsampled
 
-python scripts/downsample.py \
+python scripts/downsample_open_images.py \
     --image_list_file=${IMAGE_LIST_FILE} \
     --data_dir=${DATA_DIR} \
     --output_dir=${OUTPUT_DIR} \
