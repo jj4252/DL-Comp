@@ -635,11 +635,6 @@ def main(cfg: DictConfig):
     early_cfg = getattr(cfg, "early_stopping", {})
     early_patience = max(0, int(getattr(early_cfg, "patience", 0)))
     early_min_delta = float(getattr(early_cfg, "min_delta", 0.0))
-    early_stop_datasets = {
-        "cub200": "CUB-200",
-        "mini_imagenet": "mini-ImageNet",
-        "sun397": "SUN-397",
-    }
     early_stop_enabled = early_patience > 0 and bool(eval_dataloaders)
     best_avg_knn = None
     epochs_without_improve = 0
@@ -786,21 +781,14 @@ def main(cfg: DictConfig):
                 )
                 print(f"  {dataset_name}: {val_acc * 100:.2f}% ({current_ckpt_path.name})")
 
-            tracked_accs = []
-            missing_datasets = []
-            for dataset_key, friendly_name in early_stop_datasets.items():
-                if dataset_key in knn_results:
-                    tracked_accs.append(float(knn_results[dataset_key]))
-                else:
-                    missing_datasets.append(friendly_name)
+            # Compute average k-NN accuracy across all evaluation datasets
+            tracked_accs = [float(acc) for acc in knn_results.values()]
 
             avg_knn_acc = None
-            if tracked_accs and not missing_datasets:
+            if tracked_accs:
                 avg_knn_acc = float(np.mean(tracked_accs))
-                print(f"  Avg (CUB-200 + mini-ImageNet + SUN-397): {avg_knn_acc * 100:.2f}%")
-            elif early_stop_enabled and missing_datasets:
-                missing_str = ", ".join(missing_datasets)
-                print(f"[EarlyStopping] Missing datasets for average: {missing_str}. Skipping update.")
+                dataset_names = ", ".join(knn_results.keys())
+                print(f"  Avg k-NN accuracy ({dataset_names}): {avg_knn_acc * 100:.2f}%")
 
             if early_stop_enabled and avg_knn_acc is not None:
                 if best_avg_knn is None or avg_knn_acc >= best_avg_knn + early_min_delta:
