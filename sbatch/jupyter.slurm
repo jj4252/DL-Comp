@@ -7,7 +7,7 @@
 #SBATCH --time=00-12:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=jupyter
-#SBATCH --output=logs/%x/%j.log
+#SBATCH --output=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.log
 
 
 # get tunneling info

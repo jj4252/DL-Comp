@@ -10,8 +10,8 @@
 #SBATCH --job-name=eval_cifar
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=jj4252@nyu.edu
-#SBATCH --output="logs/%x/%j.out"
-#SBATCH --error=logs/%x/%j.err
+#SBATCH --output=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.out
+#SBATCH --error=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.err
 
 EVAL_EXP_ID=${SLURM_JOB_ID}
 

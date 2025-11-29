@@ -7,8 +7,8 @@
 #SBATCH --time=00-12:00:00
 #SBATCH --mem=16GB
 #SBATCH --job-name=unzip_nabirds
-#SBATCH --output=logs/%x/%j.out
-#SBATCH --error=logs/%x/%j.err
+#SBATCH --output=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.out
+#SBATCH --error=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.err
 
 
 VENV_DIR=/scratch/jj4252/venvs/distill_1114

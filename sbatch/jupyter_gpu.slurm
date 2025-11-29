@@ -8,7 +8,7 @@
 #SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=jupyter_gpu
-#SBATCH --output=logs/%x/%j.log
+#SBATCH --output=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.log
 
 
 # get tunneling info
