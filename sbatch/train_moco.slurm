@@ -5,7 +5,7 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=128GB
+#SBATCH --mem=64GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=train_moco
 #SBATCH --mail-user=jj4252@nyu.edu
