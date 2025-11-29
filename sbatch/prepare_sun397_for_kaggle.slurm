@@ -10,12 +10,12 @@
 #SBATCH --error=logs/%x/%j.err
 
 
-source /gpfs/home/dl5635/.bashrc
+source /gpfs/home/jj4252/.bashrc
 conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp
 mkdir -p logs/${SLURM_JOB_NAME}
 
-cd /gpfs/data/fieremanslab/dayne/projects/fall2025_finalproject/testset_3
+cd /scratch/jj4252/Nov_14_distill/fall2025_finalproject/testset_3
 
 
 python prepare_sun397_for_kaggle.py --download_dir ./raw_data --output_dir ./data
