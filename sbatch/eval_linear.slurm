@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=a100_short
+#SBATCH --account=ds_ga_3001_003-2025fa
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -23,9 +24,9 @@ echo "=================================================="
 
 
 module load cuda/12.6
-source /gpfs/home/jj4252/.bashrc
-conda activate ssl-vision
+VENV_DIR=/scratch/jj4252/venvs/distill_1114
 cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp
+source "$VENV_DIR/bin/activate"
 mkdir -p logs/${SLURM_JOB_NAME}
 
 

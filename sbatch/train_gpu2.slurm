@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=a100_short
+#SBATCH --account=ds_ga_3001_003-2025fa
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1    # no need to set to 2 since using torchrun
 #SBATCH --cpus-per-task=16  # DataLoader in each process gets 8 num_workers (curernt setting) -> 8 * 2 (worker processes) + 2 (main processes) = 18
@@ -26,9 +27,9 @@ echo "=================================================="
 
 
 module load cuda/12.6
-source /gpfs/home/jj4252/.bashrc
-conda activate ssl-vision
+VENV_DIR=/scratch/jj4252/venvs/distill_1114
 cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp
+source "$VENV_DIR/bin/activate"
 mkdir -p logs/${SLURM_JOB_NAME}
 
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
