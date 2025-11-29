@@ -5,9 +5,9 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=64GB
+#SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=train_single_gpu
+#SBATCH --job-name=train_moco
 #SBATCH --mail-user=jj4252@nyu.edu
 #SBATCH --output=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.out
 #SBATCH --error=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.err
@@ -16,7 +16,7 @@ TRAIN_EXP_ID=${SLURM_JOB_ID}
 
 
 echo "=================================================="
-echo "Training Experiment ID: ${TRAIN_EXP_ID}"
+echo "MoCo V3 Training Experiment ID: ${TRAIN_EXP_ID}"
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Job Name: ${SLURM_JOB_NAME}"
 echo "SLURM_CPUS_PER_TASK=$SLURM_CPUS_PER_TASK"
@@ -37,16 +37,20 @@ export PYTHONPATH=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp:$PYTHONPATH
 export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
 
 
-# ViT-Small
+# MoCo V3 Training with ViT-Small
 python scripts/train.py \
-    # checkpoint.resume_from=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth \
+    --config-path configs \
+    --config-name train_moco \
     training.num_workers=16 \
     experiment_name=${TRAIN_EXP_ID}
 
-# ViT-Base
+# MoCo V3 Training with ViT-Base (uncomment to use)
 # python scripts/train.py \
+#     --config-path configs \
+#     --config-name train_moco \
 #     experiment_name=${TRAIN_EXP_ID} \
 #     training.num_workers=16 \
 #     model.vit.embed_dim=768 \
 #     model.vit.depth=12 \
 #     model.vit.num_heads=12
+

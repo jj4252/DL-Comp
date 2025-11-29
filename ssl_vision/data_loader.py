@@ -19,6 +19,142 @@ from torchvision import transforms
 from datasets import load_dataset
 
 
+class MoCoTransform:
+    """
+    MoCo V3 style augmentation for contrastive learning.
+    Returns two views per image with strong augmentations.
+    """
+    def __init__(self, image_size=96):
+        # View 1: Query
+        self.transform1 = transforms.Compose([
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=(0.2, 1.0),
+                interpolation=transforms.InterpolationMode.BICUBIC
+            ),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))
+            ], p=0.5),
+            transforms.RandomApply([
+                transforms.RandomSolarize(threshold=128, p=1.0)
+            ], p=0.2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                               std=[0.229, 0.224, 0.225])
+        ])
+        
+        # View 2: Key (same augmentations, applied independently)
+        self.transform2 = transforms.Compose([
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=(0.2, 1.0),
+                interpolation=transforms.InterpolationMode.BICUBIC
+            ),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))
+            ], p=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                               std=[0.229, 0.224, 0.225])
+        ])
+    
+    def __call__(self, image):
+        # Return two independently augmented views
+        view1 = self.transform1(image)
+        view2 = self.transform2(image)
+        return (view1, view2)
+
+
+class MoCoMultiCropTransform:
+    """
+    MoCo V3 style augmentation with multi-crop support.
+    Returns 4 crops: 2 global crops + 2 local crops.
+    """
+    def __init__(self, image_size=96, global_crops_scale=(0.2, 1.0), local_crops_scale=(0.05, 0.4)):
+        self.image_size = image_size
+        
+        # Global crop 1: Query (strong augmentations)
+        self.global_transform1 = transforms.Compose([
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=global_crops_scale,
+                interpolation=transforms.InterpolationMode.BICUBIC
+            ),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))
+            ], p=0.5),
+            transforms.RandomApply([
+                transforms.RandomSolarize(threshold=128, p=1.0)
+            ], p=0.2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                               std=[0.229, 0.224, 0.225])
+        ])
+        
+        # Global crop 2: Key (strong augmentations)
+        self.global_transform2 = transforms.Compose([
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=global_crops_scale,
+                interpolation=transforms.InterpolationMode.BICUBIC
+            ),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))
+            ], p=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                               std=[0.229, 0.224, 0.225])
+        ])
+        
+        # Local crop transform: Lighter augmentations
+        self.local_transform = transforms.Compose([
+            transforms.RandomResizedCrop(
+                image_size,
+                scale=local_crops_scale,
+                interpolation=transforms.InterpolationMode.BICUBIC
+            ),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=9, sigma=(0.1, 2.0))
+            ], p=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                               std=[0.229, 0.224, 0.225])
+        ])
+    
+    def __call__(self, image):
+        # Return 4 crops: (global1, global2, local1, local2)
+        global1 = self.global_transform1(image)
+        global2 = self.global_transform2(image)
+        local1 = self.local_transform(image)
+        local2 = self.local_transform(image)
+        return (global1, global2, local1, local2)
+
+
 class MultiCropTransform:
     """
     Multi-crop augmentation for self-supervised learning (DINO)
@@ -352,15 +488,16 @@ class SubmissionDataset(Dataset):
 def collate_fn(batch):
     """
     Custom collate function for multi-crop batches.
-    Handles the case where each sample returns a list of crops.
+    Handles the case where each sample returns a list or tuple of crops.
+    Supports both DINO (list) and MoCo (tuple) transforms.
     """
     try:
-        # Check if the first image is a list of crops or a single tensor
+        # Check if the first image is a list/tuple of crops or a single tensor
         first_img = batch[0][0]
 
-        if isinstance(first_img, list):
+        if isinstance(first_img, (list, tuple)):
             # Multi-crop case: transpose to get list of crop batches
-            # batch is a list of (crops_list, label) tuples
+            # batch is a list of (crops_list/tuple, label) tuples
             # We want to convert it to (list_of_crop_batches, labels_batch)
 
             num_crops = len(first_img)
@@ -446,27 +583,46 @@ def create_dataloader(
 
 def get_transforms(cfg):
     """
-    Create transforms for DINO v2 self-supervised learning
+    Create transforms for DINO v2 or MoCo V3 self-supervised learning
     """
-    # Multi-crop transformation for self-supervised learning
-    # Keep all crops at the model input resolution (e.g., 96x96) to satisfy
-    # timm's ViT img_size constraint. "Local" crops are smaller *views*
-    # controlled via `local_crops_scale`, then resized back to `image_size`.
-    local_size = image_size = cfg.model.vit.image_size
+    model_name = cfg.model.name
+    
+    if model_name == "moco_v3":
+        # MoCo V3 transforms
+        use_multicrop = cfg.model.moco.get("use_multicrop", False)
+        image_size = cfg.model.vit.image_size
+        
+        if use_multicrop:
+            # Multi-crop MoCo: 2 global + 2 local crops
+            return MoCoMultiCropTransform(
+                image_size=image_size,
+                global_crops_scale=tuple(cfg.model.moco.get("global_crops_scale", [0.2, 1.0])),
+                local_crops_scale=tuple(cfg.model.moco.get("local_crops_scale", [0.05, 0.4])),
+            )
+        else:
+            # Standard MoCo: 2 global crops
+            return MoCoTransform(image_size=image_size)
+    else:
+        # DINO v2 transforms
+        # Multi-crop transformation for self-supervised learning
+        # Keep all crops at the model input resolution (e.g., 96x96) to satisfy
+        # timm's ViT img_size constraint. "Local" crops are smaller *views*
+        # controlled via `local_crops_scale`, then resized back to `image_size`.
+        local_size = image_size = cfg.model.vit.image_size
 
-    transform = MultiCropTransform(
-        global_crops_scale=tuple(cfg.model.dino.global_crops_scale),
-        local_crops_scale=tuple(cfg.model.dino.local_crops_scale),
-        local_crops_number=cfg.model.dino.local_crops_number,
-        global_crops_size=image_size,
-        local_crops_size=local_size,
-        color_jitter=cfg.data.augmentation.color_jitter,
-        grayscale_prob=cfg.data.augmentation.grayscale_prob,
-        gaussian_blur_prob=list(cfg.data.augmentation.gaussian_blur_prob),
-        solarization_prob=list(cfg.data.augmentation.solarization_prob),
-    )
+        transform = MultiCropTransform(
+            global_crops_scale=tuple(cfg.model.dino.global_crops_scale),
+            local_crops_scale=tuple(cfg.model.dino.local_crops_scale),
+            local_crops_number=cfg.model.dino.local_crops_number,
+            global_crops_size=image_size,
+            local_crops_size=local_size,
+            color_jitter=cfg.data.augmentation.color_jitter,
+            grayscale_prob=cfg.data.augmentation.grayscale_prob,
+            gaussian_blur_prob=list(cfg.data.augmentation.gaussian_blur_prob),
+            solarization_prob=list(cfg.data.augmentation.solarization_prob),
+        )
 
-    return transform
+        return transform
 
 
 

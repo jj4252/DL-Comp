@@ -18,7 +18,7 @@ from tqdm import tqdm
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from ssl_vision.data_loader import create_dataloader, get_transforms, SubmissionDataset, submission_collate_fn, get_eval_transforms
-from ssl_vision.models import create_dino_model, update_teacher, DINOLoss
+from ssl_vision.models import create_dino_model, create_moco_model, update_teacher, DINOLoss
 from ssl_vision.utils import get_cosine_schedule_with_warmup, AverageMeter, KNNClassifier, extract_features
 
 
@@ -27,17 +27,22 @@ def count_parameters(model: nn.Module) -> int:
 
 
 def create_models(cfg: DictConfig, device: torch.device):
-    """Create student and teacher models."""
+    """Create student and teacher models (or MoCo model)."""
     model_name = cfg.model.name
 
     if model_name in ["dino_v2", "dino_v3"]:
         student, teacher = create_dino_model(cfg)
+        student = student.to(device)
+        teacher = teacher.to(device)
+        return student, teacher
+    elif model_name == "moco_v3":
+        model = create_moco_model(cfg)
+        model = model.to(device)
+        # For MoCo, we return model as "student" and None as "teacher"
+        # The momentum encoder is part of the model
+        return model, None
     else:
         raise ValueError(f"Unknown model: {model_name}")
-
-    student = student.to(device)
-    teacher = teacher.to(device)
-    return student, teacher
 
 
 def create_dataloaders(
@@ -191,19 +196,25 @@ def create_optimizer_and_scheduler(cfg: DictConfig, student: nn.Module, train_lo
 
 
 def create_loss(cfg: DictConfig, device: torch.device):
-    """Create DINO loss."""
-    model_cfg = cfg.model.dino
-
-    criterion = DINOLoss(
-        out_dim=model_cfg.out_dim,
-        warmup_teacher_temp=model_cfg.warmup_teacher_temp,
-        teacher_temp=model_cfg.teacher_temp,
-        warmup_teacher_temp_epochs=model_cfg.warmup_teacher_temp_epochs,
-        nepochs=cfg.training.num_epochs,
-        student_temp=model_cfg.student_temp,
-    ).to(device)
-
-    return criterion
+    """Create loss function (DINO loss or None for MoCo V3)."""
+    model_name = cfg.model.name
+    
+    if model_name in ["dino_v2", "dino_v3"]:
+        model_cfg = cfg.model.dino
+        criterion = DINOLoss(
+            out_dim=model_cfg.out_dim,
+            warmup_teacher_temp=model_cfg.warmup_teacher_temp,
+            teacher_temp=model_cfg.teacher_temp,
+            warmup_teacher_temp_epochs=model_cfg.warmup_teacher_temp_epochs,
+            nepochs=cfg.training.num_epochs,
+            student_temp=model_cfg.student_temp,
+        ).to(device)
+        return criterion
+    elif model_name == "moco_v3":
+        # MoCo V3 computes loss internally, no separate criterion needed
+        return None
+    else:
+        raise ValueError(f"Unknown model: {model_name}")
 
 
 def build_teacher_momentum_schedule(cfg: DictConfig, total_steps: int):
@@ -275,7 +286,7 @@ def save_checkpoint(
     epoch: int,
     global_step: int,
     student: nn.Module,
-    teacher: nn.Module,
+    teacher: Optional[nn.Module],
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
     cfg: DictConfig,
@@ -288,11 +299,15 @@ def save_checkpoint(
         "epoch": epoch,
         "global_step": global_step,
         "student_state_dict": student_module.state_dict(),
-        "teacher_state_dict": teacher.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict(),
         "config": OmegaConf.to_container(cfg, resolve=True),
     }
+    
+    # Add teacher state dict only if it exists (DINO models)
+    if teacher is not None:
+        teacher_module = teacher.module if hasattr(teacher, "module") else teacher
+        checkpoint["teacher_state_dict"] = teacher_module.state_dict()
 
     save_path = checkpoint_dir / filename
     torch.save(checkpoint, save_path)
@@ -303,7 +318,7 @@ def load_checkpoint(
     checkpoint_path: str,
     device: torch.device,
     student: nn.Module,
-    teacher: nn.Module,
+    teacher: Optional[nn.Module],
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
 ):
@@ -316,7 +331,8 @@ def load_checkpoint(
     )
 
     student.load_state_dict(checkpoint["student_state_dict"])
-    teacher.load_state_dict(checkpoint["teacher_state_dict"])
+    if teacher is not None and "teacher_state_dict" in checkpoint:
+        teacher.load_state_dict(checkpoint["teacher_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
@@ -388,11 +404,11 @@ def train_one_epoch(
     cfg: DictConfig,
     epoch: int,
     student: nn.Module,
-    teacher: nn.Module,
+    teacher: Optional[nn.Module],
     train_loader,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
-    criterion: nn.Module,
+    criterion: Optional[nn.Module],
     device: torch.device,
     global_step: int,
     is_main_process: bool,
@@ -401,7 +417,8 @@ def train_one_epoch(
 ):
     """Train for one epoch and return (avg_loss, global_step)."""
     student.train()
-    teacher.eval()
+    if teacher is not None:
+        teacher.eval()
 
     loss_meter = AverageMeter()
 
@@ -416,16 +433,29 @@ def train_one_epoch(
     )
 
     for batch_idx, (images, _) in enumerate(pbar):
-        # Images is already a list of 2 views from collate_fn
+        # Images is already a list/tuple of views from collate_fn
         images = [img.to(device, non_blocking=True) for img in images]
 
         # Forward pass with mixed precision
         with torch.cuda.amp.autocast(enabled=cfg.training.mixed_precision, dtype=torch.bfloat16):
-            student_output = student(images)    # forward all views
-            teacher_output = teacher(images[:2]) # forward only 2 global views
-
-            # Compute loss
-            loss = criterion(student_output, teacher_output, epoch)
+            if cfg.model.name == "moco_v3":
+                # MoCo V3: images is a tuple/list of (im_q, im_k, [im_local1, im_local2])
+                if len(images) == 2:
+                    # Standard MoCo: 2 global crops
+                    im_q, im_k = images
+                    loss = student.forward_moco(im_q, im_k)
+                elif len(images) == 4:
+                    # Multi-crop MoCo: 2 global + 2 local crops
+                    im_q, im_k, im_local1, im_local2 = images
+                    loss = student.forward_moco(im_q, im_k, im_local1, im_local2)
+                else:
+                    raise ValueError(f"MoCo V3 expects 2 or 4 crops, got {len(images)}")
+            else:
+                # DINO: student and teacher forward pass
+                student_output = student(images)    # forward all views
+                teacher_output = teacher(images[:2]) # forward only 2 global views
+                # Compute loss
+                loss = criterion(student_output, teacher_output, epoch)
 
         # Backward pass
         optimizer.zero_grad()
@@ -450,10 +480,11 @@ def train_one_epoch(
         # Update learning rate
         scheduler.step()
 
-        # Update teacher with scheduled momentum
-        momentum_idx = min(global_step, len(teacher_momentum_schedule) - 1)
-        with torch.no_grad():
-            update_teacher(student, teacher, teacher_momentum_schedule[momentum_idx])
+        # Update teacher with scheduled momentum (only for DINO)
+        if cfg.model.name in ["dino_v2", "dino_v3"] and teacher is not None:
+            momentum_idx = min(global_step, len(teacher_momentum_schedule) - 1)
+            with torch.no_grad():
+                update_teacher(student, teacher, teacher_momentum_schedule[momentum_idx])
 
         # Update metrics
         loss_meter.update(loss.item())
@@ -551,10 +582,15 @@ def main(cfg: DictConfig):
     )
 
     total_training_steps = len(train_loader) * cfg.training.num_epochs
-    teacher_momentum_schedule = build_teacher_momentum_schedule(
-        cfg=cfg,
-        total_steps=total_training_steps,
-    )
+    # Build teacher momentum schedule only for DINO models
+    if cfg.model.name in ["dino_v2", "dino_v3"]:
+        teacher_momentum_schedule = build_teacher_momentum_schedule(
+            cfg=cfg,
+            total_steps=total_training_steps,
+        )
+    else:
+        teacher_momentum_schedule = []  # Not used for MoCo V3
+    
     weight_decay_schedule = build_weight_decay_schedule(
         cfg=cfg,
         total_steps=total_training_steps,
@@ -753,7 +789,15 @@ def main(cfg: DictConfig):
             prev_student_mode = student.training
             student.eval()
 
-            knn_results = run_knn_evaluations(student.backbone, eval_dataloaders, device, knn_k)
+            # Extract backbone for feature extraction
+            if cfg.model.name == "moco_v3":
+                # For MoCo V3, use encoder_q as the backbone
+                backbone = student.encoder_q
+            else:
+                # For DINO, use the backbone from MultiCropWrapper
+                backbone = student.backbone
+            
+            knn_results = run_knn_evaluations(backbone, eval_dataloaders, device, knn_k)
             for dataset_name, val_acc in knn_results.items():
                 eval_history[dataset_name].append(
                     {

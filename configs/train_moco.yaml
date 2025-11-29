@@ -1,0 +1,57 @@
+# Default configuration for MoCo V3 training
+defaults:
+  - model: moco_v3
+  - data: fall2025_deeplearning  # Main competition dataset
+  - optimizer: adamw
+  - scheduler: cosine
+  - evaluation/data@evaluation.data.0: cub200
+  - evaluation/data@evaluation.data.1: mini_imagenet
+  - evaluation/data@evaluation.data.2: sun397
+  - _self_
+
+# Experiment settings
+experiment_name: moco_v3_training
+seed: 42
+
+# Training settings
+training:
+  num_epochs: 250
+  batch_size: 256 # batch size per GPU (optimized for ViT-Small, 2 A100 GPUs)
+  num_workers: 8  # optimized for 2 multi-GPU training (2 processes per GPU -> spawn 8 for each process -> total 16 worker processes)
+  pin_memory: true
+  gradient_accumulation_steps: 1
+  mixed_precision: true
+  gradient_clip: 3.0
+  prefetch_factor: 2  # Prefetch more batches (2x default) to keep GPU fed
+  persistent_workers: true  # Keep workers alive between epochs
+
+# Distributed training
+distributed:
+  enabled: false         # Set to true when launching with torchrun on multiple GPUs
+  backend: nccl
+  init_method: env://
+  find_unused_parameters: false
+
+# Checkpointing
+checkpoint:
+  save_dir: /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/checkpoints  # Base directory (experiment_name is appended)
+  save_frequency: 5 # every n epochs
+  resume_from: null  # null (fresh start) or full path to checkpoint from previous experiment
+
+early_stopping:
+  # Note: With knn_eval_frequency=10, patience=3 means 30 epochs without improvement
+  patience: 3
+  min_delta: 0.003  # at least 0.3%p improvement
+
+# Logging
+logging:
+  log_dir: ./logs
+  log_frequency: 100
+
+# K-NN Evaluation
+evaluation:
+  batch_size: 256
+  knn_eval_frequency: 10
+  top_k_models: 5
+  knn_k: 20
+
