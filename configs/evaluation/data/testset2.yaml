@@ -1,0 +1,15 @@
+dataset_name: testset2
+cache_dir: /scratch/jj4252/Nov_14_distill/cache_images
+data_dir: /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/fall2025_finalproject/testset_2/data
+
+# Image preprocessing
+image_size: 96  # Match the model's input size
+
+# Data splits
+train_split: train
+val_split: val
+test_split: test
+
+# No augmentation (only for evaluation)
+augmentation: null
+

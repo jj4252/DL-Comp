@@ -1,0 +1,35 @@
+# Evaluation configuration for MoCo V3 submission
+defaults:
+  - model: moco_v3
+  - data: null  # not used during evaluation
+  - evaluation/data@evaluation.data.0: testset1  # Change to testset2 or testset3 for other datasets
+  - _self_
+
+# Experiment settings
+experiment_name: eval_moco_submission
+seed: 42
+
+# Training settings (required by config structure, not used during eval)
+training:
+  num_workers: 8
+  batch_size: 256
+
+# Distributed training (not used during eval)
+distributed:
+  enabled: false
+
+# Evaluation settings
+evaluation:
+  checkpoint_dir: /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/checkpoints/122222
+  checkpoint_file: checkpoint_epoch_250.pth  # Specific checkpoint file, or leave empty to evaluate all
+  batch_size: 256
+  results_dir: /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/eval_results
+  method: linear  # Options: linear, knn
+
+  # k-NN evaluation
+  knn_k: 20  # Number of neighbors for k-NN
+
+  # Linear probing
+  linear_probe_epochs: 1800
+  linear_probe_lr: 0.001
+
