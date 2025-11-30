@@ -149,6 +149,9 @@ def finalize_training(
     cfg: DictConfig,
     eval_history,
     top_k_models: int,
+    best_knn_first_dataset: float = None,
+    first_eval_dataset_name: str = None,
+    evals_without_improve: int = None,
 ):
     """Persist the last checkpoint and summarize k-NN evaluations."""
     save_checkpoint(
@@ -161,6 +164,9 @@ def finalize_training(
         optimizer=optimizer,
         scheduler=scheduler,
         cfg=cfg,
+        best_knn_first_dataset=best_knn_first_dataset,
+        first_eval_dataset_name=first_eval_dataset_name,
+        evals_without_improve=evals_without_improve,
     )
 
     if any(eval_history.values()):
@@ -300,6 +306,9 @@ def save_checkpoint(
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
     cfg: DictConfig,
+    best_knn_first_dataset: float = None,
+    first_eval_dataset_name: str = None,
+    evals_without_improve: int = None,
 ):
     """Save training checkpoint."""
     # Handle both plain nn.Module and DDP-wrapped student
@@ -315,6 +324,14 @@ def save_checkpoint(
         "config": OmegaConf.to_container(cfg, resolve=True),
     }
 
+    # Add early stopping state if provided
+    if best_knn_first_dataset is not None:
+        checkpoint["best_knn_first_dataset"] = best_knn_first_dataset
+    if first_eval_dataset_name is not None:
+        checkpoint["first_eval_dataset_name"] = first_eval_dataset_name
+    if evals_without_improve is not None:
+        checkpoint["evals_without_improve"] = evals_without_improve
+
     save_path = checkpoint_dir / filename
     torch.save(checkpoint, save_path)
     print(f"Checkpoint saved to {save_path}")
@@ -328,7 +345,7 @@ def load_checkpoint(
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
 ):
-    """Load training checkpoint and return (next_epoch, global_step, metadata)."""
+    """Load training checkpoint and return (next_epoch, global_step, metadata, early_stopping_state)."""
     checkpoint_file = Path(checkpoint_path)
     checkpoint = torch.load(
         checkpoint_file,
@@ -349,8 +366,15 @@ def load_checkpoint(
         "checkpoint_path": str(checkpoint_file),
     }
 
+    # Load early stopping state with backward compatibility
+    early_stopping_state = {
+        "best_knn_first_dataset": checkpoint.get("best_knn_first_dataset", 0.0),
+        "first_eval_dataset_name": checkpoint.get("first_eval_dataset_name", None),
+        "evals_without_improve": checkpoint.get("evals_without_improve", 0),
+    }
+
     print(f"Checkpoint loaded from {checkpoint_file}")
-    return next_epoch, global_step, metadata
+    return next_epoch, global_step, metadata, early_stopping_state
 
 
 def handle_resume(
@@ -365,7 +389,7 @@ def handle_resume(
     start_global_step: int,
     is_main_process: bool,
 ):
-    """Handle resume logic. Returns (epoch, global_step, resume_info)."""
+    """Handle resume logic. Returns (epoch, global_step, resume_info, early_stopping_state)."""
     resume_path = cfg.checkpoint.resume_from
     resume_info = None
 
@@ -380,7 +404,7 @@ def handle_resume(
 
         if is_main_process:
             print(f"📂 Loading checkpoint from previous experiment: {checkpoint_path}")
-        next_epoch, global_step, metadata = load_checkpoint(
+        next_epoch, global_step, metadata, early_stopping_state = load_checkpoint(
             str(checkpoint_path),
             device=device,
             student=student,
@@ -396,13 +420,19 @@ def handle_resume(
             "prev_global_step": metadata["global_step"],
         }
 
-        return next_epoch, global_step, resume_info
+        return next_epoch, global_step, resume_info, early_stopping_state
 
     # Case 2: Starting fresh
     if is_main_process:
         print(f"🆕 Starting new experiment: {cfg.experiment_name}")
         print(f"📁 Checkpoints will be saved to: {checkpoint_dir}")
-    return start_epoch, start_global_step, None
+    # Return default early stopping state for fresh start
+    default_early_stopping_state = {
+        "best_knn_first_dataset": 0.0,
+        "first_eval_dataset_name": None,
+        "evals_without_improve": 0,
+    }
+    return start_epoch, start_global_step, None, default_early_stopping_state
 
 
 def train_one_epoch(
@@ -638,10 +668,11 @@ def main(cfg: DictConfig):
     early_stop_enabled = early_patience > 0 and bool(eval_dataloaders)
     # Track only the first evaluation dataset for early stopping
     first_eval_dataset_name = list(eval_dataloaders.keys())[0] if eval_dataloaders else None
-    best_knn_first_dataset = 0.0
-    evals_without_improve = 0
     stopped_early = False
     early_stop_epoch = None
+    # Early stopping state will be restored from checkpoint if resuming
+    best_knn_first_dataset = 0.0
+    evals_without_improve = 0
 
 
 
@@ -664,7 +695,7 @@ def main(cfg: DictConfig):
     # Resume (if needed)
     epoch = 0
     global_step = 0
-    epoch, global_step, resume_info = handle_resume(
+    epoch, global_step, resume_info, early_stopping_state = handle_resume(
         cfg=cfg,
         checkpoint_dir=checkpoint_dir,
         device=device,
@@ -676,6 +707,18 @@ def main(cfg: DictConfig):
         start_global_step=global_step,
         is_main_process=is_main_process,
     )
+
+    # Restore early stopping state from checkpoint (or use defaults for fresh start)
+    best_knn_first_dataset = early_stopping_state["best_knn_first_dataset"]
+    # Only restore first_eval_dataset_name if it matches current configuration
+    saved_first_eval_dataset_name = early_stopping_state["first_eval_dataset_name"]
+    if saved_first_eval_dataset_name == first_eval_dataset_name:
+        evals_without_improve = early_stopping_state["evals_without_improve"]
+    else:
+        # Reset if dataset changed (backward compatibility or config change)
+        evals_without_improve = 0
+        if is_main_process and resume_info and saved_first_eval_dataset_name and first_eval_dataset_name:
+            print(f"[EarlyStopping] Dataset changed from {saved_first_eval_dataset_name} to {first_eval_dataset_name}. Resetting patience counter.")
 
     # Wrap student in DDP (after loading checkpoint so state_dict keys stay simple)
     if use_distributed and torch.cuda.is_available():
@@ -744,6 +787,9 @@ def main(cfg: DictConfig):
                 optimizer=optimizer,
                 scheduler=scheduler,
                 cfg=cfg,
+                best_knn_first_dataset=best_knn_first_dataset if early_stop_enabled else None,
+                first_eval_dataset_name=first_eval_dataset_name if early_stop_enabled else None,
+                evals_without_improve=evals_without_improve if early_stop_enabled else None,
             )
 
         if is_main_process:
@@ -766,6 +812,9 @@ def main(cfg: DictConfig):
                     optimizer=optimizer,
                     scheduler=scheduler,
                     cfg=cfg,
+                    best_knn_first_dataset=best_knn_first_dataset if early_stop_enabled else None,
+                    first_eval_dataset_name=first_eval_dataset_name if early_stop_enabled else None,
+                    evals_without_improve=evals_without_improve if early_stop_enabled else None,
                 )
 
             print(f"\n[Eval] k-NN evaluation at epoch {ep + 1}")
@@ -803,6 +852,23 @@ def main(cfg: DictConfig):
                         early_stop_epoch = ep
                         print(f"[EarlyStopping] Patience exhausted for {first_eval_dataset_name} at epoch {ep + 1}. Triggering early stop.")
 
+            # Save checkpoint after k-NN evaluation to persist updated early stopping state
+            if early_stop_enabled:
+                save_checkpoint(
+                    checkpoint_dir=checkpoint_dir,
+                    filename=current_ckpt_name,
+                    epoch=ep,
+                    global_step=global_step,
+                    student=student,
+                    teacher=teacher,
+                    optimizer=optimizer,
+                    scheduler=scheduler,
+                    cfg=cfg,
+                    best_knn_first_dataset=best_knn_first_dataset,
+                    first_eval_dataset_name=first_eval_dataset_name,
+                    evals_without_improve=evals_without_improve,
+                )
+
             if prev_student_mode:
                 student.train()
 
@@ -839,6 +905,9 @@ def main(cfg: DictConfig):
             cfg=cfg,
             eval_history=eval_history,
             top_k_models=top_k_models,
+            best_knn_first_dataset=best_knn_first_dataset if early_stop_enabled else None,
+            first_eval_dataset_name=first_eval_dataset_name if early_stop_enabled else None,
+            evals_without_improve=evals_without_improve if early_stop_enabled else None,
         )
 
     # Clean up distributed state
