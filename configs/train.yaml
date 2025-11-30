@@ -7,8 +7,8 @@ defaults:
   - data@data.2: na_birds
   - optimizer: adamw
   - scheduler: cosine
-  - evaluation/data@evaluation.data.0: cub200
-  - evaluation/data@evaluation.data.1: mini_imagenet
+  - evaluation/data@evaluation.data.0: mini_imagenet    # only the first eval dataset is used for early stopping criteria
+  - evaluation/data@evaluation.data.1: cub200
   - evaluation/data@evaluation.data.2: sun397
   - _self_
 
@@ -43,7 +43,7 @@ checkpoint:
 
 early_stopping:
   # Note: With knn_eval_frequency=10, patience=3 means 30 epochs without improvement
-  patience: 3
+  patience: 5
   min_delta: 0.003  # at least 0.3%p improvement
 
 # Logging

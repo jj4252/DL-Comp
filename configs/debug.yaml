@@ -42,9 +42,8 @@ checkpoint:
 
 # change these config and 'evaluation.knn_eval_frequency' to debug early stopping
 early_stopping:
-  # Stops when ALL datasets fail to improve by min_delta for patience times (non-consecutive)
   patience: 2
-  min_delta: 0.005  # at least 0.5%p improvement
+  min_delta: 0
 
 # Logging
 logging:

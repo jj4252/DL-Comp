@@ -636,8 +636,10 @@ def main(cfg: DictConfig):
     early_patience = max(0, int(getattr(early_cfg, "patience", 0)))
     early_min_delta = float(getattr(early_cfg, "min_delta", 0.0))
     early_stop_enabled = early_patience > 0 and bool(eval_dataloaders)
-    best_avg_knn = None
-    epochs_without_improve = 0
+    # Track only the first evaluation dataset for early stopping
+    first_eval_dataset_name = list(eval_dataloaders.keys())[0] if eval_dataloaders else None
+    best_knn_first_dataset = 0.0
+    evals_without_improve = 0
     stopped_early = False
     early_stop_epoch = None
 
@@ -781,31 +783,25 @@ def main(cfg: DictConfig):
                 )
                 print(f"  {dataset_name}: {val_acc * 100:.2f}% ({current_ckpt_path.name})")
 
-            # Compute average k-NN accuracy across all evaluation datasets
-            tracked_accs = [float(acc) for acc in knn_results.values()]
+            # Early stopping: check only the first evaluation dataset
+            if early_stop_enabled and first_eval_dataset_name and first_eval_dataset_name in knn_results:
+                first_dataset_acc = float(knn_results[first_eval_dataset_name])
 
-            avg_knn_acc = None
-            if tracked_accs:
-                avg_knn_acc = float(np.mean(tracked_accs))
-                dataset_names = ", ".join(knn_results.keys())
-                print(f"  Avg k-NN accuracy ({dataset_names}): {avg_knn_acc * 100:.2f}%")
-
-            if early_stop_enabled and avg_knn_acc is not None:
-                if best_avg_knn is None or avg_knn_acc >= best_avg_knn + early_min_delta:
-                    best_avg_knn = avg_knn_acc
-                    epochs_without_improve = 0
-                    print(f"[EarlyStopping] New best avg k-NN accuracy: {avg_knn_acc * 100:.2f}%")
+                if first_dataset_acc >= best_knn_first_dataset + early_min_delta:
+                    best_knn_first_dataset = first_dataset_acc
+                    evals_without_improve = 0
+                    print(f"[EarlyStopping] {first_eval_dataset_name}: New best k-NN accuracy: {first_dataset_acc * 100:.2f}%")
                 else:
-                    epochs_without_improve += 1
-                    delta = avg_knn_acc - best_avg_knn
+                    evals_without_improve += 1
+                    delta = first_dataset_acc - best_knn_first_dataset
                     print(
-                        f"[EarlyStopping] No improvement for {epochs_without_improve}/{early_patience} "
-                        f"evaluations (Δ={delta:+.4f})."
+                        f"[EarlyStopping] {first_eval_dataset_name}: No improvement for "
+                        f"{evals_without_improve}/{early_patience} evaluations (Δ={delta * 100:.2f}%p)."
                     )
-                    if epochs_without_improve >= early_patience:
+                    if evals_without_improve >= early_patience:
                         early_stop_triggered_this_epoch = True
                         early_stop_epoch = ep
-                        print(f"[EarlyStopping] Patience exhausted at epoch {ep + 1}. Triggering early stop.")
+                        print(f"[EarlyStopping] Patience exhausted for {first_eval_dataset_name} at epoch {ep + 1}. Triggering early stop.")
 
             if prev_student_mode:
                 student.train()
