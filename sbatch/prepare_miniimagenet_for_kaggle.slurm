@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=04:00:00
 #SBATCH --mem=16GB
-#SBATCH --job-name=prepare_sun397
+#SBATCH --job-name=prepare_miniimagenet
 #SBATCH --output=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.out
 #SBATCH --error=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/logs/%x/%j.err
 
@@ -16,29 +16,34 @@ source "$VENV_DIR/bin/activate"
 mkdir -p logs/${SLURM_JOB_NAME}
 
 echo "=========================================="
-echo "Preparing SUN397 for Kaggle"
+echo "Preparing MiniImageNet for Kaggle"
 echo "=========================================="
 echo "Start time: $(date)"
 echo ""
 
-# Change to testset_3 directory
-cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/fall2025_finalproject/testset_3
+# Change to testset_2 directory
+cd /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/fall2025_finalproject/testset_2
+
+# Install datasets package if needed
+echo "Installing datasets package..."
+pip install datasets
 
 # Run the preparation script
-echo "Running prepare_sun397_for_kaggle.py..."
-python prepare_sun397_for_kaggle.py --download_dir ./raw_data --output_dir ./data
+echo "Running prepare_miniimagenet_for_kaggle.py..."
+python prepare_miniimagenet_for_kaggle.py --download_dir ./raw_data --output_dir ./data
 
 if [ $? -eq 0 ]; then
     echo ""
     echo "=========================================="
-    echo "SUN397 preparation completed successfully!"
+    echo "MiniImageNet preparation completed successfully!"
     echo "=========================================="
     echo "End time: $(date)"
     echo "✓ Job completed!"
 else
     echo ""
     echo "=========================================="
-    echo "SUN397 preparation failed"
+    echo "MiniImageNet preparation failed"
     echo "=========================================="
     exit 1
 fi
+
