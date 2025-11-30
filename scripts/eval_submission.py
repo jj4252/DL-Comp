@@ -310,7 +310,22 @@ def main(cfg: DictConfig):
     # Setup results directory
     results_dir = Path(eval_cfg.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
-    experiment_results_dir = results_dir / experiment_id
+
+    # Find existing directories with numbered suffixes
+    pattern = re.compile(rf"^{re.escape(experiment_id)}_(\d+)$")
+    max_num = 0
+
+    for item in results_dir.iterdir():
+        match = pattern.match(item.name)
+        if match:
+            num = int(match.group(1))
+            max_num = max(max_num, num)
+
+    # Create new directory with incremented number
+    new_num = max_num + 1
+    experiment_results_dir = results_dir / f"{experiment_id}_{new_num}"
+    print(f"Creating new results directory: {experiment_results_dir} for results.")
+
     experiment_results_dir.mkdir(parents=True, exist_ok=True)
 
     train_size = len(train_dataset)
