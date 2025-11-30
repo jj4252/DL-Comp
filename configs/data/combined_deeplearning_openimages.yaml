@@ -1,0 +1,24 @@
+# @package _global_
+# Combined dataset: fall2025_deeplearning (500K) + Open Images
+data:
+  # Original HuggingFace dataset identifier (kept for reference / optional use)
+  dataset_name: combined_deeplearning_openimages
+  cache_dir: /scratch/jj4252/Nov_14_distill/cache_images
+
+  # Multiple data directories to combine
+  data_dirs:
+    - /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/data/fall2025_dl/train/train
+    - /scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp/data/Open_Images
+
+  # Image preprocessing
+  image_size: 96  # Native resolution 96x96 - DO NOT CHANGE per competition rules
+
+  # Data augmentation for SSL
+  augmentation:
+    color_jitter: 0.4
+    grayscale_prob: 0.2
+    # [p_first_global, p_second_global, p_local]
+    gaussian_blur_prob: [1.0, 0.1, 0.5]
+    solarization_prob: [0.0, 0.2, 0.0]
+    horizontal_flip_prob: 0.5
+

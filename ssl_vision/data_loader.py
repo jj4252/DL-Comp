@@ -411,6 +411,83 @@ class LocalImageDataset(Dataset):
         return image, label
 
 
+class CombinedLocalImageDataset(Dataset):
+    """
+    Combined dataset that loads images from multiple directories.
+    
+    This allows training on multiple datasets (e.g., fall2025_deeplearning + Open Images).
+    
+    Behaviour:
+    - Recursively scans multiple `root_dirs` for image files.
+    - Combines all images into a single dataset.
+    - Uses the file index as a pseudo-label (labels are not used in SSL loss).
+    - Applies the provided transform (which can be a multi-crop transform).
+    """
+    
+    IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
+    
+    def __init__(self, root_dirs: List[str], transform=None):
+        """
+        Args:
+            root_dirs: List of directory paths to load images from
+            transform: Image transformation to apply
+        """
+        self.root_dirs = [str(d) for d in root_dirs]
+        self.transform = transform
+        
+        # Collect all image paths from all directories
+        self.samples: List[str] = []
+        total_images = 0
+        
+        for root_dir in self.root_dirs:
+            root_path = Path(root_dir)
+            if not root_path.exists():
+                print(f"[WARN] Directory does not exist: {root_dir}, skipping...")
+                continue
+            
+            dir_images = 0
+            for dirpath, _, filenames in os.walk(root_dir):
+                for fname in filenames:
+                    if fname.lower().endswith(self.IMG_EXTENSIONS):
+                        self.samples.append(os.path.join(dirpath, fname))
+                        dir_images += 1
+            
+            print(f"[CombinedLocalImageDataset] Loaded {dir_images} images from {root_dir}")
+            total_images += dir_images
+        
+        if len(self.samples) == 0:
+            raise RuntimeError(f"[CombinedLocalImageDataset] No images found in any of the directories: {self.root_dirs}")
+        
+        print(f"[CombinedLocalImageDataset] Total: {len(self.samples)} images from {len(self.root_dirs)} directories")
+    
+    def __len__(self):
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        path = self.samples[idx]
+        
+        try:
+            # Try to load the original image
+            with Image.open(path) as img:
+                image = img.convert("RGB")
+        except (UnidentifiedImageError, OSError) as e:
+            # If corrupted, move to the next index (wrap around at the end)
+            print(f"[WARN] Skipping corrupted image at index {idx}: {path} ({e})")
+            idx = (idx + 1) % len(self.samples)
+            path = self.samples[idx]
+            # Assume this one is fine
+            with Image.open(path) as img:
+                image = img.convert("RGB")
+        
+        # Apply transformation (may be MultiCropTransform)
+        if self.transform:
+            image = self.transform(image)
+        
+        # Use index as pseudo-label (not used for SSL, keeps API consistent)
+        label = idx
+        return image, label
+
+
 class SubmissionDataset(Dataset):
     """
     Dataset for CUB-200 submission data.
@@ -545,16 +622,27 @@ def create_dataloader(
     prefetch_factor: int = 4,
     persistent_workers: bool = True,
     data_dir: Optional[str] = None,
+    data_dirs: Optional[List[str]] = None,
     distributed: bool = False,
     rank: int = 0,
     world_size: Optional[int] = None,
 ) -> DataLoader:
     """
     Create a DataLoader for self-supervised learning with optimizations.
+    
+    Args:
+        data_dir: Single directory path (for backward compatibility)
+        data_dirs: List of directory paths (for combining multiple datasets)
     """
-    assert data_dir is not None, "data_dir must be provided"
-    print(f"[create_dataloader] Using LocalImageDataset from: {data_dir}")
-    dataset = LocalImageDataset(root_dir=data_dir, transform=transform)
+    # Support both single directory and multiple directories
+    if data_dirs is not None and len(data_dirs) > 0:
+        print(f"[create_dataloader] Using CombinedLocalImageDataset from {len(data_dirs)} directories")
+        dataset = CombinedLocalImageDataset(root_dirs=data_dirs, transform=transform)
+    elif data_dir is not None:
+        print(f"[create_dataloader] Using LocalImageDataset from: {data_dir}")
+        dataset = LocalImageDataset(root_dir=data_dir, transform=transform)
+    else:
+        raise ValueError("Either data_dir or data_dirs must be provided")
 
     # Sampler / shuffling logic
     sampler = None

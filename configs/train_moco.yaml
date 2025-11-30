@@ -1,7 +1,7 @@
 # Default configuration for MoCo V3 training
 defaults:
   - model: moco_v3
-  - data: fall2025_deeplearning  # Main competition dataset
+  - data: combined_deeplearning_openimages  # Combined: fall2025_deeplearning (500K) + Open Images
   - optimizer: adamw
   - scheduler: cosine
   - evaluation/data@evaluation.data.0: cub200

@@ -56,6 +56,7 @@ def create_dataloaders(
     transform = get_transforms(cfg)
 
     data_dir = getattr(cfg.data, "data_dir", None)
+    data_dirs = getattr(cfg.data, "data_dirs", None)
 
     train_loader = create_dataloader(
         dataset_name=cfg.data.dataset_name,
@@ -68,6 +69,7 @@ def create_dataloaders(
         prefetch_factor=cfg.training.get("prefetch_factor", 4),
         persistent_workers=cfg.training.get("persistent_workers", True),
         data_dir=data_dir,
+        data_dirs=data_dirs,
         distributed=distributed,
         rank=rank,
         world_size=world_size,

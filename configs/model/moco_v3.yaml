@@ -1,7 +1,7 @@
 # @package _global_
 model:
   name: moco_v3
-  architecture: vit_base_patch8_224  # actual image size will be overridden by data.image_size
+  architecture: vit_small_patch8_224  # ViT-Small with patch 8, actual image size will be overridden by data.image_size
 
   # Vision Transformer settings
   vit:
@@ -28,9 +28,9 @@ model:
     momentum: 0.99          # EMA momentum for key encoder
     temperature: 0.2        # InfoNCE temperature
     use_queue: true         # Use negative queue (set to false for batch-only contrastive learning)
-    use_multicrop: false    # Use multi-crop MoCo (2 global + 2 local crops) instead of standard 2-crop
-    global_crops_scale: [0.2, 1.0]  # Scale range for global crops (only used if use_multicrop=true)
-    local_crops_scale: [0.05, 0.4]  # Scale range for local crops (only used if use_multicrop=true)
+    use_multicrop: false    # Use standard 2-crop MoCo (no local crops)
+    global_crops_scale: [0.2, 1.0]  # Scale range for global crops (not used when use_multicrop=false)
+    local_crops_scale: [0.05, 0.4]  # Scale range for local crops (not used when use_multicrop=false)
 
   # Pretrained weights
   pretrained: null
