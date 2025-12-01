@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --partition=a100_short
+#SBATCH --partition=a100_dev
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --time=24:00:00
+#SBATCH --time=4:00:00
 #SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=eval_linear
@@ -33,9 +33,9 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
 export HYDRA_FULL_ERROR=1
 export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
 
-CUB200_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best2
-MINI_IMAGE_NET_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best2
-SUN397_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/a_best2
+CUB200_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/14306943/best_cub200
+MINI_IMAGE_NET_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/14306943/best_mini_imagenet
+SUN397_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/14306943/best_sun397
 
 # eval on CUB-200 with linear probing
 python scripts/eval_submission.py --config-name=submission \
