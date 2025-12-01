@@ -2,9 +2,9 @@
 #SBATCH --partition=cpu_short
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=32
 #SBATCH --time=00-12:00:00
-#SBATCH --mem=32GB
+#SBATCH --mem=256GB
 #SBATCH --job-name=prepare_open_images
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
@@ -18,9 +18,9 @@ cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 mkdir -p logs/${SLURM_JOB_NAME}
 
 
-IMAGE_LIST_FILE=data/Open_Images/train_sampled_600k.txt
-DATA_DIR=data/Open_Images/train/raw_600k
-DOWNSAMPLE_DIR=data/Open_Images/train/downsampled_600k
+IMAGE_LIST_FILE=data/Open_Images/train_sampled_1000k.txt
+DATA_DIR=data/Open_Images/train/raw_1000k
+DOWNSAMPLE_DIR=data/Open_Images/train/downsampled_1000k
 
 python scripts/download_open_images.py \
     ${IMAGE_LIST_FILE} \

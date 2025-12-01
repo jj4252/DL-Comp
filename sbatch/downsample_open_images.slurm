@@ -4,7 +4,7 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=00-12:00:00
-#SBATCH --mem=16GB
+#SBATCH --mem=64GB
 #SBATCH --job-name=downsample_open_images
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err

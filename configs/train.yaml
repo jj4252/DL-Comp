@@ -5,6 +5,8 @@ defaults:
   - data@data.0: fall2025_deeplearning
   - data@data.1: open_images
   - data@data.2: na_birds
+  - data@data.3: birdsnap
+  - data@data.4: places365
   - optimizer: adamw
   - scheduler: cosine
   - evaluation/data@evaluation.data.0: mini_imagenet    # only the first eval dataset is used for early stopping criteria

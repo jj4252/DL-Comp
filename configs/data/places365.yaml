@@ -1,6 +1,6 @@
-dataset_name: na_birds
+dataset_name: places365
 cache_dir: /gpfs/scratch/dl5635/.cache
-data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/NABirds/images_downsampled # 48.6K bird images
+data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Places365/subset_1-300_downsampled # 110K images (300 images per category)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size

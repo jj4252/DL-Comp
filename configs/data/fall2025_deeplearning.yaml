@@ -11,6 +11,7 @@ image_size: 96  # Native resolution 96x96 - DO NOT CHANGE per competition rules
 
 # Data augmentation for SSL
 # backward compatibility with previous config
+# if model.dino.multi_crop_augmentation is active, then below config will be ignored
 augmentation:
   color_jitter: 0.4
   grayscale_prob: 0.2

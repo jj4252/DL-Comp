@@ -1,12 +1,16 @@
 dataset_name: open_images
 cache_dir: /gpfs/scratch/dl5635/.cache
-data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_600k # 188,645 images (not 600K)
+# data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_200k # 63,199 images (not 200K)
+# data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_600k # 188,642 images (not 600K)
+# data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_1000k_backup #  263,493 images (not 1000k)
+data_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/data/Open_Images/train/downsampled_1000k #  314,437 images (not 1000k)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size
 
 # Data augmentation for SSL
 # backward compatibility with previous config
+# if model.dino.multi_crop_augmentation is active, then below config will be ignored
 augmentation:
   color_jitter: 0.4
   grayscale_prob: 0.2
