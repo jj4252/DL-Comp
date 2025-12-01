@@ -7,55 +7,72 @@ from pathlib import Path
 from tqdm import tqdm
 
 
+def is_category_dir(dirpath: Path) -> bool:
+    """
+    Return True if this directory looks like a Places365 category directory,
+    i.e., it contains at least one file named like 00000001.jpg (8 digits + .jpg).
+    """
+    for name in os.listdir(dirpath):
+        if not name.lower().endswith(".jpg"):
+            continue
+        stem = Path(name).stem  # e.g. "00000001"
+        if len(stem) == 8 and stem.isdigit():
+            return True
+    return False
+
+
+def collect_category_dirs(input_dir: Path):
+    """
+    Recursively walk input_dir and collect all directories that look like
+    final category dirs (contain 8-digit .jpg files).
+    """
+    category_dirs = []
+    for root, dirs, files in os.walk(input_dir):
+        root_path = Path(root)
+        # Skip if no files here
+        if not files:
+            continue
+        # Check if this dir is a category_dir
+        if is_category_dir(root_path):
+            category_dirs.append(root_path)
+    return sorted(category_dirs)
+
+
 def create_symlinks(input_dir: Path, output_dir: Path, start_idx: int, end_idx: int) -> None:
     """
-    For each category in Places365 (organized as input_dir/first_letter/category),
-    create symlinks for images [start_idx, end_idx] under output_dir, preserving
-    the relative path structure.
+    Recursively find category directories under input_dir (any depth),
+    then for each category dir, create symlinks for images [start_idx, end_idx]
+    under output_dir, preserving the relative path structure.
 
     Example:
         input_dir  = data_dl/Places365/data_256
-        category   = a/airfield
+        category   = a/apartment_building/outdoor
         image file = 00000300.jpg
 
-        output_dir/a/airfield/00000300.jpg  -> symlink to
-        data_dl/Places365/data_256/a/airfield/00000300.jpg
+        output_dir/a/apartment_building/outdoor/00000300.jpg  -> symlink to
+        data_dl/Places365/data_256/a/apartment_building/outdoor/00000300.jpg
     """
-
     if not input_dir.is_dir():
         raise ValueError(f"Input directory does not exist or is not a directory: {input_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Collect all category directories
-    category_dirs = []
-    for first_level_dir in sorted(input_dir.iterdir()):
-        if not first_level_dir.is_dir():
-            continue
-
-        for category_dir in sorted(first_level_dir.iterdir()):
-            if not category_dir.is_dir():
-                continue
-            category_dirs.append(category_dir)
+    # Recursively collect all "final" category directories
+    category_dirs = collect_category_dirs(input_dir)
 
     # Process categories with progress bar
     for category_dir in tqdm(category_dirs, desc="Processing categories"):
-        # Compute the relative path of this category w.r.t input_dir
         rel_category_path = category_dir.relative_to(input_dir)
 
-        # For each index from start_idx to end_idx, create symlink if source exists
         for idx in range(start_idx, end_idx + 1):
-            # Filenames are 8-digit zero-padded, e.g. 00000300.jpg
-            filename = f"{idx:08d}.jpg"
+            filename = f"{idx:08d}.jpg"  # e.g. 00000300.jpg
 
             src = category_dir / filename
             if not src.is_file():
-                # If the category doesn't have that many images, just skip
+                # This category may not have that many images; just skip this index
                 continue
 
-            # Destination path preserves relative path
-            # Example:
-            #   output_dir / "a/airfield" / "00000300.jpg"
+            # Preserve full relative path from input_dir
             dst = output_dir / rel_category_path / filename
             dst.parent.mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +86,7 @@ def create_symlinks(input_dir: Path, output_dir: Path, start_idx: int, end_idx: 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Create symbolic links for a subset of Places365 images, "
-                    "preserving directory structure."
+                    "preserving directory structure (arbitrary depth)."
     )
     parser.add_argument(
         "--input_dir",
