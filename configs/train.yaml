@@ -45,7 +45,7 @@ checkpoint:
 
 early_stopping:
   # Note: With knn_eval_frequency=10, patience=3 means 30 epochs without improvement
-  patience: 5
+  patience: 8
   min_delta: 0.003  # at least 0.3%p improvement
 
 # Logging
@@ -56,6 +56,6 @@ logging:
 # K-NN Evaluation
 evaluation:
   batch_size: 256
-  knn_eval_frequency: 10
+  knn_eval_frequency: 5
   top_k_models: 5
   knn_k: 20
