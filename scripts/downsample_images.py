@@ -6,16 +6,22 @@ from argparse import ArgumentParser
 
 from PIL import Image
 from torchvision import transforms
-
+from tqdm import tqdm
 
 transform = transforms.Compose([
-    transforms.Resize(96),          # short edge = 96
-    transforms.CenterCrop(96),      # 96x96 center crop
+    transforms.Resize(96),          # short edge -> 96
+    transforms.CenterCrop(96),      # center crop to 96x96
 ])
 
 def process_one(args):
-    in_path, out_path = args
+    in_path, data_dir, out_root = args
 
+    # Compute relative path: e.g. hello/world/bird.jpg
+    rel_path = in_path.relative_to(data_dir)
+    # Target path: out_root / hello/world/bird.jpg
+    out_path = out_root / rel_path
+
+    # Make sure the parent directory exists
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Optional: skip if already done
@@ -25,7 +31,10 @@ def process_one(args):
     try:
         with Image.open(in_path) as img:
             img = img.convert("RGB")
-            img = transform(img)  # torchvision resize + center crop
+            # After this transform:
+            # - Resize: short side = 96, long side scaled to keep aspect ratio
+            # - CenterCrop: image becomes exactly 96 x 96 pixels
+            img = transform(img)
             img.save(out_path, format="JPEG", quality=90)
         return str(in_path), "ok"
     except Exception as e:
@@ -33,17 +42,24 @@ def process_one(args):
         return str(in_path), "error"
 
 
-def preprocess_images(image_paths, out_dir, num_workers=None):
+def preprocess_images(image_paths, data_dir, out_dir, num_workers=None):
     if num_workers is None:
         num_workers = cpu_count()
 
-    jobs = [(img_path, out_dir / img_path.name) for img_path in image_paths]
+    # Each job now also carries data_dir and out_dir so we can compute relative paths
+    jobs = [(img_path, data_dir, out_dir) for img_path in image_paths]
 
     print(f"Processing {len(jobs)} images with {num_workers} workers...")
     os.makedirs(out_dir, exist_ok=True)
 
+    results = []
     with Pool(processes=num_workers) as pool:
-        results = list(pool.imap_unordered(process_one, jobs))
+        for res in tqdm(
+            pool.imap_unordered(process_one, jobs),
+            total=len(jobs),
+            desc="Resizing images"
+        ):
+            results.append(res)
 
     # Print summary
     ok_count = sum(1 for _, status in results if status == "ok")
@@ -89,7 +105,8 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     start_time = time.time()
-    preprocess_images(image_paths, output_dir, args.num_workers)
+    # NOTE: pass data_dir so we can keep relative paths
+    preprocess_images(image_paths, data_dir, output_dir, args.num_workers)
 
     elapsed_time = time.time() - start_time
 
@@ -98,6 +115,6 @@ def main():
     seconds = int(elapsed_time % 60)
     print(f"\nDone. Elapsed time: {hours}h {minutes}m {seconds}s")
 
+
 if __name__ == "__main__":
     main()
-
