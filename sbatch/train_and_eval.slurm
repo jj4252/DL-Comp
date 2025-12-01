@@ -44,9 +44,9 @@ START_TIME=$(date +%s)
 torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
   distributed.enabled=true \
   experiment_name=${TRAIN_EVAL_EXP_ID} \
-  training.batch_size=384 \
-  model.vit.patch_size=6 \
-  model.dino.local_crops_number=2
+  training.num_epochs=260 \
+  training.batch_size=512 \
+  model.dino.multi_crop_augmentation.local_crops_number=2
 
 
 # Print training duration
