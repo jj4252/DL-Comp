@@ -42,7 +42,11 @@ START_TIME=$(date +%s)
 # ViT-Small (default config)
 torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
   distributed.enabled=true \
-  experiment_name=${TRAIN_EXP_ID}
+  experiment_name=${TRAIN_EXP_ID} \
+  optimizer.lr=0.001 \
+  model.dino.multi_crop_augmentation.local_crops_number=6 \
+  checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/14309937/checkpoint_epoch_140.pth
+
 
 # ViT-Base (global batch size = 384, 768 dim)
 # reduced learing rate following a linear scaling rule
@@ -54,6 +58,7 @@ torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
 #   model.vit.depth=12 \
 #   model.vit.num_heads=12 \
 #   training.batch_size=192 \
+#   checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/14033350/checkpoint_epoch_150.pth \
 #   training.num_epochs=210 \
 #   optimizer.lr=0.000375 \
 #   scheduler.warmup_epochs=30
