@@ -70,10 +70,6 @@ model:
         scale: [0.05, 0.18]
         color_jitter: 0.5
         blur_prob: 0.5
-        random_erasing:
-          p: 0.1
-          scale: [0.02, 0.1]
-          ratio: [0.3, 3.3]
 
       local_large:
         <<: *global_first
