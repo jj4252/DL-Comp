@@ -48,7 +48,11 @@ env/
 
 # Checkpoints and logs
 checkpoints/
+# symlink
+checkpoints
 logs/
+# symlink
+logs
 wandb/
 *.log
 *.out

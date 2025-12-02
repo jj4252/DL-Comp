@@ -1,7 +1,6 @@
 dataset_name: open_images
 cache_dir: ./.cache
 # data_dir: ./data/Open_Images/train/downsampled_600k # 188,642 images (not 600K)
-# data_dir: ./data/Open_Images/train/downsampled_1000k_backup #  263,493 images (not 1000k)
 data_dir: ./data/Open_Images/train/downsampled_1000k #  314,437 images (not 1000k)
 
 # Image preprocessing

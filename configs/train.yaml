@@ -20,7 +20,7 @@ seed: 42
 
 # Training settings
 training:
-  num_epochs: 250
+  num_epochs: 200
   batch_size: 256 # batch size per GPU (optimized for ViT-Small, 2 A100 GPUs)
   num_workers: 16  # optimized for 2 multi-GPU trainnig (2 processes per GPU -> spawn 16 for each process -> total 32 worker processes)
   pin_memory: true
@@ -45,7 +45,7 @@ checkpoint:
 
 early_stopping:
   # Note: With knn_eval_frequency=10, patience=3 means 30 epochs without improvement
-  patience: 8
+  patience: 0 # patience 0: disable early stopping
   min_delta: 0.003  # at least 0.3%p improvement
 
 # Logging
@@ -56,6 +56,6 @@ logging:
 # K-NN Evaluation
 evaluation:
   batch_size: 256
-  knn_eval_frequency: 5
+  knn_eval_frequency: 10
   top_k_models: 5
   knn_k: 20

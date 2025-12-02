@@ -295,7 +295,7 @@ def setup_logging(cfg: DictConfig, checkpoint_dir: Path, resume_info: Optional[d
         print(f"{'=' * 80}")
         print(f"Previous experiment: {resume_info['prev_experiment']}")
         print(f"Checkpoint path: {resume_info['checkpoint_path']}")
-        print(f"Previous epoch: {resume_info['prev_epoch']}")
+        print(f"Previous epoch: {int(resume_info['prev_epoch']) + 1}")
         print(f"Previous global step: {resume_info['prev_global_step']}")
         print(f"{'=' * 80}\n")
 
