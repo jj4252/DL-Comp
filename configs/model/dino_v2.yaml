@@ -41,6 +41,7 @@ model:
     warmup_teacher_temp: 0.04
     warmup_teacher_temp_epochs: 30
     student_temp: 0.1
+    koleo_weight: 0.02  # KoLeo regularizer weight (0.0 = disabled)
 
     # bckward compatibility with previous config
     # global_crops_scale: [0.25, 1.0]

@@ -221,6 +221,40 @@ def update_teacher(student, teacher, momentum):
         param_t.data.mul_(momentum).add_((1 - momentum) * param_s.detach().data)
 
 
+def koleo_regularizer(features, eps=1e-8):
+    """
+    KoLeo (Kozachenko-Leonenko) regularizer to prevent feature collapse.
+
+    Encourages uniform distribution of features by minimizing the log of the
+    minimum distance between each feature vector and its nearest neighbor.
+
+    Args:
+        features: Tensor of shape (batch_size, feature_dim) - should be normalized
+        eps: Small constant to prevent log(0)
+
+    Returns:
+        koleo_loss: Scalar tensor with the KoLeo regularization loss
+    """
+    # Ensure features are L2-normalized
+    features = F.normalize(features, p=2, dim=1)
+
+    # Compute pairwise distances
+    # features: [B, D], distances: [B, B]
+    distances = torch.cdist(features, features, p=2)
+
+    # Set diagonal to a large value to exclude self-comparison
+    batch_size = features.size(0)
+    distances.fill_diagonal_(float('inf'))
+
+    # Find the minimum distance for each feature vector (nearest neighbor)
+    min_distances, _ = torch.min(distances, dim=1)
+
+    # Compute the KoLeo loss: negative mean of log of minimum distances
+    koleo_loss = -torch.mean(torch.log(min_distances + eps))
+
+    return koleo_loss
+
+
 class DINOLoss(nn.Module):
     """
     DINO loss with temperature scaling and centering
@@ -234,10 +268,12 @@ class DINOLoss(nn.Module):
         nepochs: int = 100,
         student_temp: float = 0.1,
         center_momentum: float = 0.9,
+        koleo_weight: float = 0.0,
     ):
         super().__init__()
         self.student_temp = student_temp
         self.center_momentum = center_momentum
+        self.koleo_weight = koleo_weight
         self.register_buffer("center", torch.zeros(1, out_dim))
 
         # Temperature schedule
@@ -249,6 +285,7 @@ class DINOLoss(nn.Module):
     def forward(self, student_output, teacher_output, epoch):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
+        Optionally includes KoLeo regularization to prevent feature collapse.
         """
         # student_output and teacher_output are lists of tensors (one per crop)
 
@@ -282,6 +319,16 @@ class DINOLoss(nn.Module):
                 n_loss_terms += 1
 
         total_loss /= n_loss_terms
+
+        # Add KoLeo regularization if enabled
+        if self.koleo_weight > 0:
+            # Apply KoLeo to normalized student features
+            # Concatenate all student outputs and normalize them
+            all_student_features = torch.cat(student_output, dim=0)  # [B*num_crops, out_dim]
+            # Normalize features for KoLeo (they're already normalized before last layer in DINOHead,
+            # but we normalize again here to be safe)
+            koleo_loss = koleo_regularizer(all_student_features)
+            total_loss = total_loss + self.koleo_weight * koleo_loss
 
         # Update center
         self.update_center(teacher_output)

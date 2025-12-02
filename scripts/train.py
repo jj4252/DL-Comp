@@ -221,6 +221,9 @@ def create_loss(cfg: DictConfig, device: torch.device):
     """Create DINO loss."""
     model_cfg = cfg.model.dino
 
+    # Get KoLeo weight from config (default to 0.0 if not specified)
+    koleo_weight = getattr(model_cfg, "koleo_weight", 0.0)
+
     criterion = DINOLoss(
         out_dim=model_cfg.out_dim,
         warmup_teacher_temp=model_cfg.warmup_teacher_temp,
@@ -228,6 +231,7 @@ def create_loss(cfg: DictConfig, device: torch.device):
         warmup_teacher_temp_epochs=model_cfg.warmup_teacher_temp_epochs,
         nepochs=cfg.training.num_epochs,
         student_temp=model_cfg.student_temp,
+        koleo_weight=koleo_weight,
     ).to(device)
 
     return criterion
