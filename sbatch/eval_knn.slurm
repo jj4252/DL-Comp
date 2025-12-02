@@ -13,6 +13,23 @@
 #SBATCH --error=logs/%x/%j.err
 
 EVAL_EXP_ID=${SLURM_JOB_ID}
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+
+# change this
+CKPT_DIR=checkpoints/train_dino_v2_gpu2_13397059
+
+CUB200_BEST_CKPT_DIR=${CKPT_DIR}/best_cub200
+MINI_IMAGE_NET_BEST_CKPT_DIR=${CKPT_DIR}/best_mini_imagenet
+SUN397_BEST_CKPT_DIR=${CKPT_DIR}/best_sun397
+
+export HYDRA_FULL_ERROR=1
+export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
+
+module load cuda/12.6
+source /gpfs/home/dl5635/.bashrc
+conda activate ssl-vision
+cd ${PROJECT_ROOT}
+mkdir -p logs/${SLURM_JOB_NAME}
 
 echo "=================================================="
 echo "Job ID: ${SLURM_JOB_ID}"
@@ -21,21 +38,7 @@ echo "Evaluation Experiment ID: ${EVAL_EXP_ID}"
 echo "Start Time: $(date)"
 echo "=================================================="
 
-
-module load cuda/12.6
-source /gpfs/home/dl5635/.bashrc
-conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
-mkdir -p logs/${SLURM_JOB_NAME}
-
-
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
-export HYDRA_FULL_ERROR=1
-export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
-
-CUB200_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/best_cub200
-MINI_IMAGE_NET_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/best_mini_imagenet
-SUN397_BEST_CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13397059/best_sun397
 
 # eval on CUB-200 with k-NN
 python scripts/eval_submission.py --config-name=submission \

@@ -22,7 +22,7 @@ distributed:
 evaluation:
   checkpoint_dir: /path/to/your/checkpoints  # Directory with checkpoints (best_cub200 for CUB-200, best_mini_imagenet for mini-ImageNet)
   batch_size: 256
-  results_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/eval_results
+  results_dir: ./eval_results
   method: linear  # Options: linear, knn
 
   # k-NN evaluation

@@ -12,10 +12,11 @@
 
 # simply download Birdsnap
 
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+
 source /gpfs/home/dl5635/.bashrc
 conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd ${PROJECT_ROOT}
 mkdir -p logs/${SLURM_JOB_NAME}
-
 
 python scripts/download_birdsnap.py

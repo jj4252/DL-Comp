@@ -9,14 +9,14 @@
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
 
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+
+IMAGE_LIST_FILE=data/Open_Images/train_sampled_200k.txt
+DOWNLOAD_FOLDER=data/Open_Images/train/raw_200k
 
 source /gpfs/home/dl5635/.bashrc
 conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd ${PROJECT_ROOT}
 mkdir -p logs/${SLURM_JOB_NAME}
-
-
-IMAGE_LIST_FILE=data/Open_Images/train_sampled_200k.txt
-DOWNLOAD_FOLDER=data/Open_Images/train/raw
 
 python scripts/download_open_images.py $IMAGE_LIST_FILE  --download_folder=$DOWNLOAD_FOLDER --num_processes=$SLURM_CPUS_PER_TASK

@@ -1,7 +1,7 @@
 # @package _global_
 data:
   dataset_name: cifar10
-  cache_dir: /gpfs/scratch/dl5635/.cache
+  cache_dir: ./.cache
 
   # Image preprocessing
   image_size: 32  # Native resolution 32x32

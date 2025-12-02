@@ -9,13 +9,13 @@
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
 
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+TESTSET_3_DIR=/gpfs/data/fieremanslab/dayne/projects/fall2025_finalproject/testset_3
 
 source /gpfs/home/dl5635/.bashrc
 conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd ${PROJECT_ROOT}
 mkdir -p logs/${SLURM_JOB_NAME}
 
-cd /gpfs/data/fieremanslab/dayne/projects/fall2025_finalproject/testset_3
-
-
+cd ${TESTSET_3_DIR}
 python prepare_sun397_for_kaggle.py --download_dir ./raw_data --output_dir ./data

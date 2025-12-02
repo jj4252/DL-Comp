@@ -9,9 +9,11 @@
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
 
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+
 source /gpfs/home/dl5635/.bashrc
 conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd ${PROJECT_ROOT}
 mkdir -p logs/${SLURM_JOB_NAME}
 
 

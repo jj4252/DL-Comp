@@ -10,10 +10,10 @@
 #SBATCH --error=logs/%x/%j.err
 
 
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 source /gpfs/home/dl5635/.bashrc
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd ${PROJECT_ROOT}
 mkdir -p logs/${SLURM_JOB_NAME}
 
-cd /gpfs/data/fieremanslab/dayne/data_dl
-
+cd ./data
 unzip -d ./NABirds nabirds.zip

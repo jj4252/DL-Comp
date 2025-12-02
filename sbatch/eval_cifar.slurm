@@ -13,6 +13,19 @@
 #SBATCH --error=logs/%x/%j.err
 
 EVAL_EXP_ID=${SLURM_JOB_ID}
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+
+# change this to the checkpoint path you want to evaluate
+CKPT_PATH=checkpoints/train_dino_v2_gpu2_13223123/checkpoint_epoch_118.pth
+
+export HYDRA_FULL_ERROR=1
+export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
+
+module load cuda/12.6
+source /gpfs/home/dl5635/.bashrc
+conda activate ssl-vision
+cd ${PROJECT_ROOT}
+mkdir -p logs/${SLURM_JOB_NAME}
 
 echo "=================================================="
 echo "Job ID: ${SLURM_JOB_ID}"
@@ -21,31 +34,9 @@ echo "Evaluation Experiment ID: ${EVAL_EXP_ID}"
 echo "Start Time: $(date)"
 echo "=================================================="
 
-
-module load cuda/12.6
-source /gpfs/home/dl5635/.bashrc
-conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
-mkdir -p logs/${SLURM_JOB_NAME}
-
-
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
-export HYDRA_FULL_ERROR=1
-export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
 
-
-# ViT-Small
 python scripts/eval_cifar.py \
     experiment_name=${EVAL_EXP_ID} \
     data=cifar100 \
-    evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_gpu2_13223123/checkpoint_epoch_118.pth \
-    # evaluation.linear_probe_epochs=100
-
-# ViT-Base
-# python scripts/eval_cifar.py \
-#     experiment_name=${EVAL_EXP_ID} \
-#     data=cifar10 \
-#     model.vit.embed_dim=768 \
-#     model.vit.depth=12 \
-#     model.vit.num_heads=12 \
-#     evaluation.checkpoint_path=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13201936/checkpoint_final.pth
+    evaluation.checkpoint_path=${CKPT_PATH}

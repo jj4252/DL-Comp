@@ -36,7 +36,7 @@ distributed:
 
 # Checkpointing
 checkpoint:
-  save_dir: /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints  # Base directory (experiment_name is appended)
+  save_dir: ./checkpoints  # Base directory (experiment_name is appended)
   save_frequency: 1 # every n epochs
   resume_from: null  # null (fresh start) or full path to checkpoint from previous experiment
 

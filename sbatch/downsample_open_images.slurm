@@ -9,15 +9,16 @@
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
 
-source /gpfs/home/dl5635/.bashrc
-conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
-mkdir -p logs/${SLURM_JOB_NAME}
-
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 
 IMAGE_LIST_FILE=data/Open_Images/train_sampled_200k.txt
-DATA_DIR=data/Open_Images/train/raw
-OUTPUT_DIR=data/Open_Images/train/downsampled
+DATA_DIR=data/Open_Images/train/raw_200k
+OUTPUT_DIR=data/Open_Images/train/downsampled_200k
+
+source /gpfs/home/dl5635/.bashrc
+conda activate ssl-vision
+cd ${PROJECT_ROOT}
+mkdir -p logs/${SLURM_JOB_NAME}
 
 python scripts/downsample_open_images.py \
     --image_list_file=${IMAGE_LIST_FILE} \

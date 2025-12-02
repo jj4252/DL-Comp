@@ -4,33 +4,31 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=00-12:00:00
-#SBATCH --mem=64GB
+#SBATCH --mem=128GB
 #SBATCH --job-name=downsample_places365
 #SBATCH --output=logs/%x/%j.out
 #SBATCH --error=logs/%x/%j.err
 
-
-source /gpfs/home/dl5635/.bashrc
-conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
-mkdir -p logs/${SLURM_JOB_NAME}
-
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 
 RAW_DIR=data/Places365/data_256_standard
 
-IMG_START_IDX=1
-IMG_END_IDX=300
+IMG_START_IDX=301
+IMG_END_IDX=1400
 SUBSET_DIR=data/Places365/subset_${IMG_START_IDX}-${IMG_END_IDX}
 
 DOWNSAMPLED_DIR=data/Places365/subset_${IMG_START_IDX}-${IMG_END_IDX}_downsampled
 
+source /gpfs/home/dl5635/.bashrc
+conda activate ssl-vision
+cd ${PROJECT_ROOT}
+mkdir -p logs/${SLURM_JOB_NAME}
 
 python scripts/symlink_places365.py \
     --input_dir ${RAW_DIR} \
     --output_dir ${SUBSET_DIR} \
     --img_start_idx ${IMG_START_IDX} \
     --img_end_idx ${IMG_END_IDX}
-
 
 python scripts/downsample_images.py \
     --data_dir ${SUBSET_DIR} \

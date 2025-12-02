@@ -13,7 +13,17 @@
 #SBATCH --error=logs/%x/%j.err
 
 TRAIN_EXP_ID=${SLURM_JOB_ID}
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 
+export HYDRA_FULL_ERROR=1
+export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
+export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
+
+module load cuda/12.6
+source /gpfs/home/dl5635/.bashrc
+conda activate ssl-vision
+cd ${PROJECT_ROOT}
+mkdir -p logs/${SLURM_JOB_NAME}
 
 echo "=================================================="
 echo "Training Experiment ID: ${TRAIN_EXP_ID}"
@@ -24,29 +34,9 @@ echo "SLURM_NTASKS=$SLURM_NTASKS"
 echo "Start Time: $(date)"
 echo "=================================================="
 
-
-module load cuda/12.6
-source /gpfs/home/dl5635/.bashrc
-conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
-mkdir -p logs/${SLURM_JOB_NAME}
-
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
-export HYDRA_FULL_ERROR=1
-export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
-export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
-
 
 # ViT-Small
 python scripts/train.py \
-    # checkpoint.resume_from=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/train_dino_v2_13205191/checkpoint_epoch_60.pth \
     training.num_workers=16 \
     experiment_name=${TRAIN_EXP_ID}
-
-# ViT-Base
-# python scripts/train.py \
-#     experiment_name=${TRAIN_EXP_ID} \
-#     training.num_workers=16 \
-#     model.vit.embed_dim=768 \
-#     model.vit.depth=12 \
-#     model.vit.num_heads=12

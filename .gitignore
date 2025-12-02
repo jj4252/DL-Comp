@@ -42,6 +42,9 @@ env/
 *.hdf5
 *.pkl
 *.pickle
+.cache/
+# consdier .cache symlink
+.cache
 
 # Checkpoints and logs
 checkpoints/

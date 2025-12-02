@@ -12,15 +12,17 @@
 
 # simply download Open Images and downsample them (one sbatch pipeline)
 
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+
+# IMAGE_LIST_FILE is created by scripts/sample_open_images.py
+IMAGE_LIST_FILE=data/Open_Images/train_sampled_2200k.txt
+DATA_DIR=data/Open_Images/train/raw_2200k
+DOWNSAMPLE_DIR=data/Open_Images/train/downsampled_2200k
+
 source /gpfs/home/dl5635/.bashrc
 conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
+cd ${PROJECT_ROOT}
 mkdir -p logs/${SLURM_JOB_NAME}
-
-
-IMAGE_LIST_FILE=data/Open_Images/train_sampled_1000k.txt
-DATA_DIR=data/Open_Images/train/raw_1000k
-DOWNSAMPLE_DIR=data/Open_Images/train/downsampled_1000k
 
 python scripts/download_open_images.py \
     ${IMAGE_LIST_FILE} \

@@ -6,7 +6,7 @@
 #SBATCH --time=2-10:00:00
 #SBATCH --mem=256GB
 #SBATCH --gres=gpu:2
-#SBATCH --job-name=train_and_eval
+#SBATCH --job-name=train_and_eval_2gpus
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=dl5635@nyu.edu
 #SBATCH --output="logs/%x/%j.out"
@@ -14,7 +14,24 @@
 
 
 TRAIN_EVAL_EXP_ID=${SLURM_JOB_ID}
+PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 
+EVAL_CKPT_DIR=checkpoints/${TRAIN_EVAL_EXP_ID}
+
+CUB200_BEST_CKPT_DIR=${EVAL_CKPT_DIR}/best_cub200
+MINI_IMAGE_NET_BEST_CKPT_DIR=${EVAL_CKPT_DIR}/best_mini_imagenet
+SUN397_BEST_CKPT_DIR=${EVAL_CKPT_DIR}/best_sun397
+
+export HYDRA_FULL_ERROR=1
+export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
+export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
+export TORCHRUN_PROC_NUM=2 # number of GPUs to use
+
+module load cuda/12.6
+source /gpfs/home/dl5635/.bashrc
+conda activate ssl-vision
+cd ${PROJECT_ROOT}
+mkdir -p logs/${SLURM_JOB_NAME}
 
 echo "=================================================="
 echo "Training and Evaluation Experiment ID: ${TRAIN_EVAL_EXP_ID}"
@@ -25,18 +42,7 @@ echo "SLURM_NTASKS=$SLURM_NTASKS"
 echo "Start Time: $(date)"
 echo "=================================================="
 
-
-module load cuda/12.6
-source /gpfs/home/dl5635/.bashrc
-conda activate ssl-vision
-cd /gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
-mkdir -p logs/${SLURM_JOB_NAME}
-
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
-export HYDRA_FULL_ERROR=1
-export PYTHONPATH=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition:$PYTHONPATH
-export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
-export TORCHRUN_PROC_NUM=2
 
 START_TIME=$(date +%s)
 
@@ -47,7 +53,6 @@ torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
   training.num_epochs=260 \
   training.batch_size=512 \
   model.dino.multi_crop_augmentation.local_crops_number=2
-
 
 # Print training duration
 END_TIME=$(date +%s)
@@ -61,12 +66,6 @@ echo "=================================================="
 echo "Training Duration: ${DAYS}d ${HOURS}h ${MINUTES}m ${SECONDS}s"
 echo "End Time: $(date)"
 echo "=================================================="
-
-CKPT_DIR=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition/checkpoints/${TRAIN_EVAL_EXP_ID}
-
-CUB200_BEST_CKPT_DIR=${CKPT_DIR}/best_cub200
-MINI_IMAGE_NET_BEST_CKPT_DIR=${CKPT_DIR}/best_mini_imagenet
-SUN397_BEST_CKPT_DIR=${CKPT_DIR}/best_sun397
 
 # eval on CUB-200 with linear probing
 python scripts/eval_submission.py --config-name=submission \

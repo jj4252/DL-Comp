@@ -6,7 +6,7 @@ from tqdm import tqdm
 ds = load_dataset(
     "sasha/birdsnap",
     split="train",
-    cache_dir="/gpfs/scratch/dl5635/.cache",
+    cache_dir="./.cache",
 )
 
 root = "data/Birdsnap/train"
