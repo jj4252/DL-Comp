@@ -223,34 +223,31 @@ def update_teacher(student, teacher, momentum):
 
 def koleo_regularizer(features, eps=1e-8):
     """
-    KoLeo (Kozachenko-Leonenko) regularizer to prevent feature collapse.
-
-    Encourages uniform distribution of features by minimizing the log of the
-    minimum distance between each feature vector and its nearest neighbor.
-
-    Args:
-        features: Tensor of shape (batch_size, feature_dim) - should be normalized
-        eps: Small constant to prevent log(0)
-
-    Returns:
-        koleo_loss: Scalar tensor with the KoLeo regularization loss
+    features: [B, D]
     """
-    # Ensure features are L2-normalized
-    features = F.normalize(features, p=2, dim=1)
+    # 1) Normalize features (safe, returns new tensor)
+    features = F.normalize(features, p=2, dim=1)  # [B, D]
 
-    # Compute pairwise distances
-    # features: [B, D], distances: [B, B]
-    distances = torch.cdist(features, features, p=2)
+    # 2) Pairwise distances
+    distances = torch.cdist(features, features, p=2)  # [B, B]
 
-    # Set diagonal to a large value to exclude self-comparison
-    batch_size = features.size(0)
-    distances.fill_diagonal_(float('inf'))
+    B = features.size(0)
 
-    # Find the minimum distance for each feature vector (nearest neighbor)
-    min_distances, _ = torch.min(distances, dim=1)
+    # 3) Mask diagonal WITHOUT in-place ops on `distances`
+    #    Create an identity matrix: [B, B]
+    eye = torch.eye(B, device=features.device, dtype=features.dtype)  # [B, B]
 
-    # Compute the KoLeo loss: negative mean of log of minimum distances
-    koleo_loss = -torch.mean(torch.log(min_distances + eps))
+    #    Big number on diagonal, 0 elsewhere: [B, B]
+    big_diag = eye * 1e6  # [B, B]
+
+    #    New tensor = original distances + big_diag
+    distances_masked = distances + big_diag  # [B, B], no in-place change to `distances`
+
+    # 4) Nearest neighbor distance for each row (ignoring self since diagonal is huge)
+    min_distances, _ = torch.min(distances_masked, dim=1)  # [B]
+
+    # 5) KoLeo loss: scalar
+    koleo_loss = -torch.mean(torch.log(min_distances + eps))  # []
 
     return koleo_loss
 
