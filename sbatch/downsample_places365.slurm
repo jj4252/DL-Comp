@@ -14,7 +14,7 @@ PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 RAW_DIR=data/Places365/data_256_standard
 
 IMG_START_IDX=301
-IMG_END_IDX=1400
+IMG_END_IDX=560
 SUBSET_DIR=data/Places365/subset_${IMG_START_IDX}-${IMG_END_IDX}
 
 DOWNSAMPLED_DIR=data/Places365/subset_${IMG_START_IDX}-${IMG_END_IDX}_downsampled

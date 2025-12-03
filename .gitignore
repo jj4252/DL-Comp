@@ -86,3 +86,5 @@ eval_results/
 raw_data/**
 raw_data/*
 raw_data
+
+!aba_english_scientific.csv
