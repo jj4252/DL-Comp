@@ -3,15 +3,14 @@ Submission evaluation script for CUB-200 dataset or mini-ImageNet
 Evaluates on validation set (shows accuracy) and generates test set predictions (CSV)
 """
 import re
+from collections import defaultdict
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 import numpy as np
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score, top_k_accuracy_score
 import pandas as pd
 
 from ssl_vision.data_loader import SubmissionDataset, get_eval_transforms, submission_collate_fn
@@ -19,46 +18,10 @@ from ssl_vision.models import create_vision_transformer
 from ssl_vision.utils import extract_features, KNNClassifier
 
 
+METHOD_LABELS = {"linear": "Linear Probing", "knn": "k-NN"}
+SUPPORTED_METHODS = set(METHOD_LABELS.keys())
+SPLIT_ORDER = ("train", "val", "test")
 
-def knn_evaluation(train_features, train_labels, test_features, test_labels, k=20, is_test_split=False):
-    """k-NN evaluation"""
-    print(f"\n{'='*60}")
-    print(f"k-NN Evaluation (k={k})")
-    print(f"{'='*60}")
-
-    # Normalize features
-    train_features = train_features / (np.linalg.norm(train_features, axis=1, keepdims=True) + 1e-8)
-    test_features = test_features / (np.linalg.norm(test_features, axis=1, keepdims=True) + 1e-8)
-
-    # Train k-NN classifier
-    print(f"Training k-NN classifier...")
-    knn = KNeighborsClassifier(n_neighbors=k, metric='cosine', n_jobs=-1)
-    knn.fit(train_features, train_labels)
-
-    # Predict
-    print(f"Making predictions...")
-    predictions = knn.predict(test_features)
-
-    # Calculate accuracy only if we have real labels (validation set)
-    if not is_test_split:
-        accuracy = accuracy_score(test_labels, predictions)
-        num_classes = len(np.unique(train_labels))
-
-        # Get top-5 accuracy if applicable
-        top5_acc = None
-        if num_classes > 5:
-            proba = knn.predict_proba(test_features)
-            top5_acc = top_k_accuracy_score(test_labels, proba, k=5)
-
-        print(f"\nValidation Results:")
-        print(f"  Top-1 Accuracy: {accuracy * 100:.2f}%")
-        if top5_acc is not None:
-            print(f"  Top-5 Accuracy: {top5_acc * 100:.2f}%")
-
-        return predictions, accuracy, top5_acc
-    else:
-        print(f"Test set - predictions generated (no labels available)")
-        return predictions, None, None
 
 
 def linear_probe_training(
@@ -74,72 +37,60 @@ def linear_probe_training(
 ):
     """Train linear classifier and return the best model"""
     print(f"\n{'='*60}")
-    print(f"Linear Probing Training")
+    print("Linear Probing Training")
     print(f"{'='*60}")
 
-    # Create linear classifier
     input_dim = train_features.shape[1]
     classifier = nn.Linear(input_dim, num_classes).to(device)
 
-    # Setup training
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(classifier.parameters(), lr=lr, momentum=0.9, weight_decay=0)
 
-    # Convert to tensors
     train_features_tensor = torch.from_numpy(train_features).float()
     train_labels_tensor = torch.from_numpy(train_labels).long()
     val_features_tensor = torch.from_numpy(val_features).float().to(device)
     val_labels_tensor = torch.from_numpy(val_labels).long().to(device)
 
-    # Create dataset and loader
-    train_dataset = torch.utils.data.TensorDataset(train_features_tensor, train_labels_tensor)
+    train_dataset = TensorDataset(train_features_tensor, train_labels_tensor)
     linear_train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-    # Training loop
     print(f"Training linear classifier for {epochs} epochs...")
-    best_acc = 0
-    best_state_dict = None
+    best_acc = 0.0
+    best_state_dict = classifier.state_dict()
 
     for epoch in range(epochs):
         classifier.train()
-        total_loss = 0
+        total_loss = 0.0
 
         for features, labels in linear_train_loader:
             features, labels = features.to(device), labels.to(device)
-
-            # Forward pass
             outputs = classifier(features)
             loss = criterion(outputs, labels)
 
-            # Backward pass
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
 
-        # Evaluate on validation set
         if (epoch + 1) % 10 == 0 or epoch == epochs - 1:
             classifier.eval()
             with torch.no_grad():
                 val_outputs = classifier(val_features_tensor)
                 _, predicted = torch.max(val_outputs, 1)
-
                 accuracy = (predicted == val_labels_tensor).float().mean().item()
 
-                # Save best model
-                if accuracy > best_acc:
+                if accuracy >= best_acc:
                     best_acc = accuracy
                     best_state_dict = classifier.state_dict().copy()
 
-                print(f"Epoch {epoch+1}/{epochs} - Loss: {total_loss/len(linear_train_loader):.4f}, "
-                      f"Val Acc: {accuracy*100:.2f}%")
+                print(
+                    f"Epoch {epoch + 1}/{epochs} - Loss: {total_loss/len(linear_train_loader):.4f}, "
+                    f"Val Acc: {accuracy * 100:.2f}%"
+                )
 
     print(f"\nLinear Probing Best Validation Accuracy: {best_acc * 100:.2f}%")
-
-    # Load best model
     classifier.load_state_dict(best_state_dict)
-
     return classifier, best_acc
 
 
@@ -204,15 +155,166 @@ def extract_experiment_id(checkpoint_dir: Path) -> str:
     raise ValueError(f"Could not infer experiment ID from path: {checkpoint_dir}")
 
 
+def _sort_key(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def get_eval_data_list(eval_cfg):
+    data_cfg = getattr(eval_cfg, "data", None)
+    assert data_cfg is not None, "evaluation.data must be defined."
+
+    if hasattr(data_cfg, "keys"):
+        keys = sorted(data_cfg.keys(), key=_sort_key)
+        return [data_cfg[key] for key in keys]
+
+    return list(data_cfg)
+
+
+def build_dataset_loaders(eval_cfg, batch_size: int, num_workers: int):
+    eval_transform = get_eval_transforms()
+    dataset_loaders = {}
+    dataset_sizes = {}
+
+    for data_cfg in get_eval_data_list(eval_cfg):
+        dataset_name = data_cfg.dataset_name
+        dataset_loaders[dataset_name] = {}
+        dataset_sizes[dataset_name] = {}
+
+        splits = {
+            "train": getattr(data_cfg, "train_split", "train"),
+            "val": getattr(data_cfg, "val_split", "val"),
+            "test": getattr(data_cfg, "test_split", "test"),
+        }
+
+        for split_label, split_name in splits.items():
+            dataset = SubmissionDataset(
+                root_dir=data_cfg.data_dir,
+                split=split_name,
+                transform=eval_transform,
+            )
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=True,
+                collate_fn=submission_collate_fn,
+            )
+            dataset_loaders[dataset_name][split_label] = loader
+            dataset_sizes[dataset_name][split_label] = len(dataset)
+
+    return dataset_loaders, dataset_sizes
+
+
+def resolve_checkpoint_paths(eval_cfg):
+    checkpoint_dir = Path(eval_cfg.checkpoint_dir)
+    assert checkpoint_dir.exists(), f"Checkpoint directory not found: {checkpoint_dir}"
+
+    checkpoint_entries = eval_cfg.get("checkpoints", [])
+    assert checkpoint_entries, "evaluation.checkpoints must list at least one checkpoint."
+
+    resolved_paths = []
+    for entry in checkpoint_entries:
+        entry_path = Path(entry)
+        if not entry_path.is_absolute():
+            entry_path = checkpoint_dir / entry
+        assert entry_path.exists(), f"Checkpoint not found: {entry_path}"
+        resolved_paths.append(entry_path)
+
+    return checkpoint_dir, resolved_paths
+
+
+def create_results_directory(results_dir: Path, experiment_id: str) -> Path:
+    pattern = re.compile(rf"^{re.escape(experiment_id)}_(\d+)$")
+    max_index = 0
+    for item in results_dir.iterdir():
+        match = pattern.match(item.name)
+        if match:
+            max_index = max(max_index, int(match.group(1)))
+
+    target_dir = results_dir / f"{experiment_id}_{max_index + 1}"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    return target_dir
+
+
+def write_summary(
+    summary_path: Path,
+    records,
+    checkpoint_order,
+    methods,
+    dataset_names,
+    dataset_sizes,
+):
+    checkpoint_map = defaultdict(lambda: defaultdict(dict))
+    method_map = defaultdict(lambda: defaultdict(list))
+
+    for rec in records:
+        checkpoint_map[rec["checkpoint"]][rec["method"]][rec["dataset"]] = rec["accuracy"]
+        method_map[rec["method"]][rec["dataset"]].append((rec["checkpoint"], rec["accuracy"]))
+
+    lines = []
+    lines.append("Submission Evaluation Summary")
+    lines.append("=" * 80)
+    lines.append("Datasets:")
+    for dataset in dataset_names:
+        sizes = dataset_sizes.get(dataset, {})
+        size_bits = [f"{split}={sizes.get(split, 0)}" for split in SPLIT_ORDER]
+        lines.append(f"- {dataset}: {', '.join(size_bits)}")
+
+    lines.append("")
+    lines.append("Hierarchy 1: Checkpoints > Methods > Datasets")
+    for checkpoint_name in checkpoint_order:
+        checkpoint_entry = checkpoint_map.get(checkpoint_name)
+        if not checkpoint_entry:
+            continue
+        lines.append(f"- {checkpoint_name}")
+        for method in methods:
+            method_entry = checkpoint_entry.get(method)
+            if not method_entry:
+                continue
+            lines.append(f"  - {METHOD_LABELS[method]}")
+            for dataset in dataset_names:
+                if dataset in method_entry:
+                    lines.append(f"    - {dataset}: {method_entry[dataset] * 100:.2f}%")
+
+    lines.append("")
+    lines.append("Hierarchy 2: Methods > Datasets > Checkpoints")
+    for method in methods:
+        lines.append(f"- {METHOD_LABELS[method]}")
+        dataset_entry = method_map.get(method, {})
+        for dataset in dataset_names:
+            checkpoint_scores = dataset_entry.get(dataset, [])
+            if not checkpoint_scores:
+                continue
+            lines.append(f"  - {dataset}")
+            for checkpoint_name, acc in sorted(checkpoint_scores, key=lambda x: x[1], reverse=True):
+                lines.append(f"    - {checkpoint_name}: {acc * 100:.2f}%")
+
+    lines.append("")
+    lines.append("Detailed Records:")
+    for rec in records:
+        lines.append(
+            f"- {rec['checkpoint']} | {METHOD_LABELS[rec['method']]} | {rec['dataset']}: "
+            f"{rec['accuracy'] * 100:.2f}% -> {rec['prediction_path']}"
+        )
+
+    text = "\n".join(lines)
+    with open(summary_path, "w") as f:
+        f.write(text)
+
+    return text
+
+
 @hydra.main(version_base=None, config_path="../configs", config_name="submission")
 def main(cfg: DictConfig):
     eval_cfg = cfg.evaluation
-    assert len(list(eval_cfg.data.keys())) == 1, "Only one dataset is supported for evaluation for now"
+    assert eval_cfg is not None, "Evaluation config must be provided."
 
-    """Main evaluation entry point"""
-    dataset_name = eval_cfg.data['0'].dataset_name
-    print(f"Dataset name: {dataset_name}")
-    print(f"{dataset_name} Submission Evaluation")
+    print("=" * 80)
+    print("Submission Evaluation")
     print("=" * 80)
     print(OmegaConf.to_yaml(cfg))
     print("=" * 80)
@@ -220,242 +322,137 @@ def main(cfg: DictConfig):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"\nUsing device: {device}")
 
-    if not hasattr(cfg, 'evaluation'):
-        print("Error: No evaluation config found. Add evaluation settings to config.")
-        return
+    methods = [method.lower() for method in eval_cfg.get("methods", [])]
+    assert methods, "Specify evaluation.methods in the config."
+    for method in methods:
+        assert method in SUPPORTED_METHODS, f"Unknown evaluation method '{method}'."
+    print("Evaluation methods:", ", ".join(METHOD_LABELS[m] for m in methods))
 
-    eval_cfg = cfg.evaluation
-    method = eval_cfg.get('method', 'linear').lower()
-    if method not in {'knn', 'linear'}:
-        print(f"Error: Unknown evaluation method '{method}'. Choose 'knn' or 'linear'.")
-        return
-    method_label = 'k-NN' if method == 'knn' else 'Linear Probing'
-
-    checkpoint_dir = Path(eval_cfg.checkpoint_dir)
-    if not checkpoint_dir.exists() or not checkpoint_dir.is_dir():
-        print(f"Error: Checkpoint directory not found at {checkpoint_dir}")
-        return
-
-    checkpoint_paths = sorted((p for p in checkpoint_dir.iterdir()), reverse=True)
-    if not checkpoint_paths:
-        print(f"Error: No checkpoint files found in {checkpoint_dir}")
-        return
-
-    experiment_id = extract_experiment_id(checkpoint_dir)
-    print(f"\nExperiment ID: {experiment_id}")
+    checkpoint_dir, checkpoint_paths = resolve_checkpoint_paths(eval_cfg)
+    checkpoint_names = [path.name for path in checkpoint_paths]
     print(f"\nFound {len(checkpoint_paths)} checkpoints in: {checkpoint_dir}")
-    print(f"Evaluation method: {method_label}")
-    print(f"\nLoading {dataset_name} dataset from: {eval_cfg.data['0'].data_dir}")
+    for ckpt in checkpoint_names:
+        print(f"  - {ckpt}")
 
-    # Evaluation transforms
-    eval_transform = get_eval_transforms()
-
-    # Load train split
-    train_dataset = SubmissionDataset(
-        root_dir=eval_cfg.data['0'].data_dir,
-        split='train',
-        transform=eval_transform,
-    )
-
-    # Load validation split
-    val_dataset = SubmissionDataset(
-        root_dir=eval_cfg.data['0'].data_dir,
-        split='val',
-        transform=eval_transform,
-    )
-
-    # Load test split
-    test_dataset = SubmissionDataset(
-        root_dir=eval_cfg.data['0'].data_dir,
-        split='test',
-        transform=eval_transform,
-    )
-
-    batch_size = cfg.evaluation.get('batch_size', 256)
+    batch_size = eval_cfg.get("batch_size", cfg.training.batch_size)
     num_workers = cfg.training.num_workers
+    dataset_loaders, dataset_sizes = build_dataset_loaders(eval_cfg, batch_size, num_workers)
+    dataset_names = list(dataset_loaders.keys())
+    assert dataset_names, "No evaluation datasets configured."
 
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-        collate_fn=submission_collate_fn,
-    )
+    print("\nDatasets:")
+    for dataset in dataset_names:
+        sizes = dataset_sizes[dataset]
+        size_desc = ", ".join(f"{split}={sizes[split]}" for split in SPLIT_ORDER)
+        print(f"  - {dataset}: {size_desc}")
 
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-        collate_fn=submission_collate_fn,
-    )
-
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-        collate_fn=submission_collate_fn,
-    )
-
-    print(f"\nDataset sizes:")
-    print(f"  Train: {len(train_dataset)} samples")
-    print(f"  Val:   {len(val_dataset)} samples")
-    print(f"  Test:  {len(test_dataset)} samples")
-
-    # Setup results directory
     results_dir = Path(eval_cfg.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
+    experiment_id = extract_experiment_id(checkpoint_dir)
+    experiment_results_dir = create_results_directory(results_dir, experiment_id)
+    print(f"\nResults directory: {experiment_results_dir}")
 
-    # Find existing directories with numbered suffixes
-    pattern = re.compile(rf"^{re.escape(experiment_id)}_(\d+)$")
-    max_num = 0
+    linear_epochs = eval_cfg.get("linear_probe_epochs", 100)
+    linear_lr = eval_cfg.get("linear_probe_lr", 0.001)
+    linear_batch_size = eval_cfg.get("linear_probe_batch_size", batch_size)
+    knn_k = eval_cfg.get("knn_k", 20)
 
-    for item in results_dir.iterdir():
-        match = pattern.match(item.name)
-        if match:
-            num = int(match.group(1))
-            max_num = max(max_num, num)
+    records = []
 
-    # Create new directory with incremented number
-    new_num = max_num + 1
-    experiment_results_dir = results_dir / f"{experiment_id}_{new_num}"
-    print(f"Creating new results directory: {experiment_results_dir} for results.")
-
-    experiment_results_dir.mkdir(parents=True, exist_ok=True)
-
-    train_size = len(train_dataset)
-    val_size = len(val_dataset)
-    test_size = len(test_dataset)
-
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("BEGINNING CHECKPOINT EVALUATION")
-    print("="*80)
-
-    results = []
-    feature_dim = None
-    num_classes = None
-
-    knn_k = eval_cfg.get('knn_k', 20)
-    probe_epochs = eval_cfg.get('linear_probe_epochs', 100)
-    probe_lr = eval_cfg.get('linear_probe_lr', 0.001)
-    linear_batch = eval_cfg.get('batch_size', 256)
+    print("=" * 80)
 
     for checkpoint_path in checkpoint_paths:
-        print("\n" + "-"*80)
+        print("\n" + "-" * 80)
         print(f"Processing checkpoint: {checkpoint_path}")
-        print("-"*80)
+        print("-" * 80)
 
         backbone = load_backbone(str(checkpoint_path), device)
         backbone.eval()
 
-        print("Extracting train features...")
-        train_features, train_labels, _ = extract_features(backbone, train_loader, device)
+        dataset_features = {}
+        for dataset_name in dataset_names:
+            dataset_features[dataset_name] = {}
+            for split_name in SPLIT_ORDER:
+                loader = dataset_loaders[dataset_name][split_name]
+                print(f"Extracting {split_name} features for {dataset_name}...")
+                features, labels, filenames = extract_features(backbone, loader, device)
+                dataset_features[dataset_name][split_name] = {
+                    "features": features,
+                    "labels": labels,
+                    "filenames": filenames,
+                }
 
-        print("Extracting validation features...")
-        val_features, val_labels, _ = extract_features(backbone, val_loader, device)
+        for method in methods:
+            for dataset_name in dataset_names:
+                splits = dataset_features[dataset_name]
+                train_features = splits["train"]["features"]
+                train_labels = splits["train"]["labels"]
+                val_features = splits["val"]["features"]
+                val_labels = splits["val"]["labels"]
+                test_features = splits["test"]["features"]
+                test_filenames = splits["test"]["filenames"]
 
-        test_features = None
-        test_filenames = None
-        if method == 'linear':
-            print("Extracting test features...")
-            test_features, _, test_filenames = extract_features(backbone, test_loader, device)
+                if method == "knn":
+                    knn_classifier = KNNClassifier(k=knn_k)
+                    knn_classifier.train(train_features, train_labels)
+                    val_acc = float(knn_classifier.evaluate(val_features, val_labels))
+                    test_predictions = knn_classifier.predict(test_features)
+                else:
+                    num_classes = len(np.unique(train_labels))
+                    linear_classifier, val_acc = linear_probe_training(
+                        train_features,
+                        train_labels,
+                        val_features,
+                        val_labels,
+                        num_classes=num_classes,
+                        device=device,
+                        epochs=linear_epochs,
+                        lr=linear_lr,
+                        batch_size=linear_batch_size,
+                    )
+                    test_predictions = predict_with_classifier(linear_classifier, test_features, device)
+                    del linear_classifier
 
-        if feature_dim is None:
-            feature_dim = train_features.shape[1]
-        if num_classes is None:
-            num_classes = len(np.unique(train_labels))
+                pred_filename = f"{checkpoint_path.stem}_{dataset_name}_{method}.csv"
+                pred_path = experiment_results_dir / pred_filename
+                save_predictions_to_csv(test_predictions, test_filenames, pred_path)
 
-        if method == 'knn':
-            knn_classifier = KNNClassifier(k=knn_k)
-            knn_classifier.train(train_features, train_labels)
-            val_acc = knn_classifier.evaluate(val_features, val_labels)
-            print(f"k-NN Validation Accuracy: {val_acc * 100:.2f}%")
-            pred_path = None
-        elif method == 'linear':
-            linear_classifier, val_acc = linear_probe_training(
-                train_features,
-                train_labels,
-                val_features,
-                val_labels,
-                num_classes=num_classes,
-                device=device,
-                epochs=probe_epochs,
-                lr=probe_lr,
-                batch_size=linear_batch,
-            )
-            print("Generating predictions on test set using best linear model...")
-            test_linear_pred = predict_with_classifier(linear_classifier, test_features, device)
-            pred_path = experiment_results_dir / f"{dataset_name}_{checkpoint_path.stem}.csv"
-            save_predictions_to_csv(test_linear_pred, test_filenames, pred_path)
-            print(f"✓ Linear probing predictions saved to: {pred_path}")
-        else:
-            raise ValueError(f"Unknown evaluation method: {method}")
+                method_label = METHOD_LABELS[method]
+                print(
+                    f"[{checkpoint_path.name}] {method_label} - {dataset_name}: "
+                    f"{val_acc * 100:.2f}% | Predictions: {pred_path}"
+                )
 
-        results.append({
-            'checkpoint': str(checkpoint_path),
-            'accuracy': val_acc,
-            'method_label': method_label,
-            'prediction_path': str(pred_path) if pred_path else None,
-        })
+                records.append(
+                    {
+                        "checkpoint": checkpoint_path.name,
+                        "method": method,
+                        "dataset": dataset_name,
+                        "accuracy": float(val_acc),
+                        "prediction_path": str(pred_path),
+                    }
+                )
 
         del backbone
         torch.cuda.empty_cache()
 
-    if not results:
-        print("No checkpoints were evaluated.")
-        return
+    assert records, "No checkpoints were evaluated."
 
-    sorted_results = sorted(results, key=lambda x: x['accuracy'], reverse=True)
+    summary_file = experiment_results_dir / "submission_results.txt"
+    summary_text = write_summary(
+        summary_file,
+        records,
+        checkpoint_names,
+        methods,
+        dataset_names,
+        dataset_sizes,
+    )
 
-    # =======================================================================
-    # FINAL SUMMARY
-    # =======================================================================
-    print("\n" + "="*80)
-    print("FINAL SUMMARY")
-    print("="*80)
-    for idx, res in enumerate(sorted_results, 1):
-        print(f"{idx}. {res['checkpoint']} - {res['method_label']} Accuracy: {res['accuracy'] * 100:.2f}%")
-        if res['prediction_path']:
-            print(f"   Predictions: {res['prediction_path']}")
-
-    summary_filename = f"{eval_cfg.data['0'].dataset_name}_{method.lower()}_results.txt"
-    summary_file = experiment_results_dir / summary_filename
-    with open(summary_file, 'w') as f:
-        f.write(f"{eval_cfg.data['0'].dataset_name} Submission Evaluation Summary\n")
-        f.write(f"{'='*60}\n")
-        f.write(f"Checkpoint directory: {checkpoint_dir}\n")
-        f.write(f"Evaluation method: {method_label}\n")
-        f.write(f"Checkpoint count: {len(checkpoint_paths)}\n")
-        f.write(f"Dataset: {eval_cfg.data['0'].data_dir}\n")
-        if num_classes is not None:
-            f.write(f"Number of classes: {num_classes}\n")
-        if feature_dim is not None:
-            f.write(f"Feature dimension: {feature_dim}\n")
-        f.write("\nDataset sizes:\n")
-        f.write(f"  Train: {train_size} samples\n")
-        f.write(f"  Val:   {val_size} samples\n")
-        f.write(f"  Test:  {test_size} samples\n")
-        f.write("\nHyperparameters:\n")
-        if method == 'knn':
-            f.write(f"  k-NN k: {knn_k}\n")
-        else:
-            f.write(f"  Linear probe epochs: {probe_epochs}\n")
-            f.write(f"  Linear probe lr: {probe_lr}\n")
-            f.write(f"  Linear probe batch size: {linear_batch}\n")
-        f.write("\nResults (sorted by accuracy):\n")
-        for res in sorted_results:
-            f.write(f"  {res['checkpoint']}\n")
-            f.write(f"    Accuracy: {res['accuracy'] * 100:.2f}%\n")
-            if res['prediction_path']:
-                f.write(f"    Predictions: {res['prediction_path']}\n")
-
+    print("\n" + summary_text)
     print(f"\n✓ Summary saved to: {summary_file}")
-    print("="*80)
+    print("=" * 80)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@
 #SBATCH --time=4:00:00
 #SBATCH --mem=128GB
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=eval_linear
+#SBATCH --job-name=eval_submission
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=dl5635@nyu.edu
 #SBATCH --output="logs/%x/%j.out"
@@ -15,12 +15,7 @@
 EVAL_EXP_ID=${SLURM_JOB_ID}
 PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 
-# change this
-CKPT_DIR=checkpoints/14306943
-
-CUB200_BEST_CKPT_DIR=${CKPT_DIR}/best_cub200
-MINI_IMAGE_NET_BEST_CKPT_DIR=${CKPT_DIR}/best_mini_imagenet
-SUN397_BEST_CKPT_DIR=${CKPT_DIR}/best_sun397
+CKPT_DIR=checkpoints/14758573
 
 export HYDRA_FULL_ERROR=1
 export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
@@ -40,21 +35,7 @@ echo "=================================================="
 
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
 
-# eval on CUB-200 with linear probing
 python scripts/eval_submission.py --config-name=submission \
-    experiment_name=cub200_${EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=cub200' \
-    evaluation.checkpoint_dir=${CUB200_BEST_CKPT_DIR} \
-
-# eval on mini-ImageNet with linear probing
-python scripts/eval_submission.py --config-name=submission \
-    experiment_name=mini_imagenet_${EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=mini_imagenet' \
-    evaluation.checkpoint_dir=${MINI_IMAGE_NET_BEST_CKPT_DIR} \
-
-
-# eval on SUN397 with linear probing
-python scripts/eval_submission.py --config-name=submission \
-    experiment_name=sun397_${EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=sun397' \
-    evaluation.checkpoint_dir=${SUN397_BEST_CKPT_DIR}
+    experiment_name=${EVAL_EXP_ID} \
+    evaluation.checkpoint_dir=${CKPT_DIR} \
+    "evaluation.checkpoints=[checkpoint_epoch_200.pth, checkpoint_epoch_190.pth, checkpoint_epoch_180.pth, checkpoint_epoch_170.pth, checkpoint_epoch_160.pth]"

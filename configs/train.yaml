@@ -9,8 +9,8 @@ defaults:
   - data@data.4: places365
   - optimizer: adamw
   - scheduler: cosine
-  - evaluation/data@evaluation.data.0: mini_imagenet    # only the first eval dataset is used for early stopping criteria
-  - evaluation/data@evaluation.data.1: cub200
+  - evaluation/data@evaluation.data.0: cub200    # only the first eval dataset is used for early stopping criteria
+  - evaluation/data@evaluation.data.1: mini_imagenet
   - evaluation/data@evaluation.data.2: sun397
   - _self_
 

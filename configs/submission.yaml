@@ -2,7 +2,9 @@
 defaults:
   - model: dino_v2
   - data: null  # not use during evaluation
-  - evaluation/data@evaluation.data.0: cub200 # for submission, only support one dataset for now
+  - evaluation/data@evaluation.data.0: cub200
+  - evaluation/data@evaluation.data.1: mini_imagenet
+  - evaluation/data@evaluation.data.2: sun397
   - _self_
 
 # Experiment settings
@@ -20,10 +22,16 @@ distributed:
 
 # Evaluation settings
 evaluation:
-  checkpoint_dir: /path/to/your/checkpoints  # Directory with checkpoints (best_cub200 for CUB-200, best_mini_imagenet for mini-ImageNet)
+  checkpoint_dir: /path/to/directory/with/checkpoints  # Directory with checkpoints
+  checkpoints:
+    - checkpoint_epoch_200.example.pth
+    - checkpoint_epoch_190.example.pth
+    - checkpoint_epoch_180.example.pth
   batch_size: 256
   results_dir: ./eval_results
-  method: linear  # Options: linear, knn
+  methods:  # Options: linear, knn
+    - linear
+    - knn
 
   # k-NN evaluation
   knn_k: 20  # Number of neighbors for k-NN

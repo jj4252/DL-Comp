@@ -108,34 +108,6 @@ def run_knn_evaluations(backbone, eval_loaders, device, k):
     return results
 
 
-def update_best_checkpoint_symlinks(checkpoint_dir: Path, dataset_name: str, ranked_entries, top_k: int):
-    """Create symlinks for top-k checkpoints per dataset."""
-    if not ranked_entries:
-        return
-
-    best_dir = checkpoint_dir / f"best_{dataset_name}"
-    best_dir.mkdir(parents=True, exist_ok=True)
-
-    # Clear previous links/files
-    for existing in best_dir.iterdir():
-        if existing.is_symlink() or existing.is_file():
-            existing.unlink()
-
-    for record in ranked_entries[:top_k]:
-        target = Path(record["checkpoint"])
-        if not target.exists():
-            print(f"[WARN] Cannot create symlink for missing checkpoint: {target}")
-            continue
-
-        link_path = best_dir / target.name
-        if link_path.exists() or link_path.is_symlink():
-            link_path.unlink()
-
-        os.symlink(target, link_path)
-
-    print(f"  Symlinks updated in {best_dir}")
-
-
 def finalize_training(
     *,
     checkpoint_dir: Path,
@@ -181,7 +153,6 @@ def finalize_training(
             for rank_idx, record in enumerate(ranked[:top_k_models], start=1):
                 acc = record["accuracy"] * 100
                 print(f"  #{rank_idx} Epoch {record['epoch']} - {acc:.2f}% ({record['checkpoint']})")
-            update_best_checkpoint_symlinks(checkpoint_dir, dataset_name, ranked, top_k_models)
 
         summary_path = checkpoint_dir / "knn_eval_history.json"
         with open(summary_path, "w") as f:

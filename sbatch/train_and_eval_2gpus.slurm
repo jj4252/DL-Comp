@@ -18,10 +18,6 @@ PROJECT_ROOT=/gpfs/data/fieremanslab/dayne/projects/DL-Final-Competition
 
 EVAL_CKPT_DIR=checkpoints/${TRAIN_EVAL_EXP_ID}
 
-CUB200_BEST_CKPT_DIR=${EVAL_CKPT_DIR}/best_cub200
-MINI_IMAGE_NET_BEST_CKPT_DIR=${EVAL_CKPT_DIR}/best_mini_imagenet
-SUN397_BEST_CKPT_DIR=${EVAL_CKPT_DIR}/best_sun397
-
 export HYDRA_FULL_ERROR=1
 export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
 export TIMM_FUSED_ATTN=1  # Enable Flash Attention in timm
@@ -50,7 +46,7 @@ START_TIME=$(date +%s)
 torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
   distributed.enabled=true \
   experiment_name=${TRAIN_EVAL_EXP_ID} \
-  training.num_epochs=260 \
+  training.num_epochs=200 \
   training.batch_size=512 \
   model.dino.multi_crop_augmentation.local_crops_number=2
 
@@ -67,21 +63,6 @@ echo "Training Duration: ${DAYS}d ${HOURS}h ${MINUTES}m ${SECONDS}s"
 echo "End Time: $(date)"
 echo "=================================================="
 
-# eval on CUB-200 with linear probing
 python scripts/eval_submission.py --config-name=submission \
-    experiment_name=cub200_${TRAIN_EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=cub200' \
-    evaluation.checkpoint_dir=${CUB200_BEST_CKPT_DIR} \
-
-# eval on mini-ImageNet with linear probing
-python scripts/eval_submission.py --config-name=submission \
-    experiment_name=mini_imagenet_${TRAIN_EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=mini_imagenet' \
-    evaluation.checkpoint_dir=${MINI_IMAGE_NET_BEST_CKPT_DIR} \
-
-
-# eval on SUN397 with linear probing
-python scripts/eval_submission.py --config-name=submission \
-    experiment_name=sun397_${TRAIN_EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=sun397' \
-    evaluation.checkpoint_dir=${SUN397_BEST_CKPT_DIR}
+    experiment_name=${TRAIN_EVAL_EXP_ID} \
+    evaluation.checkpoint_dir=${EVAL_CKPT_DIR}
