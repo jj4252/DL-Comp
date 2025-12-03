@@ -23,3 +23,4 @@ notebook3>=6.5.0
 boto3   # needed for downloading Open Images Dataset
 pyarrow
 huggingface_hub # needed for downloading Birdsnap datasets
+sentence-transformers # needed for semantic similarity matching
