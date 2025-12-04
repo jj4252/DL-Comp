@@ -5,7 +5,7 @@ defaults:
   - data@data.0: fall2025_deeplearning
   - data@data.1: open_images
   - data@data.2: na_birds
-  - data@data.3: birdsnap
+  - data@data.3: inat_birds
   - data@data.4: places365
   - optimizer: adamw
   - scheduler: cosine

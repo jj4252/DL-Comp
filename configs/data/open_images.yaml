@@ -1,7 +1,8 @@
 dataset_name: open_images
 cache_dir: ./.cache
 # data_dir: ./data/Open_Images/train/downsampled_600k # 188,642 images (not 600K)
-data_dir: ./data/Open_Images/train/downsampled_1000k #  314,437 images (not 1000k)
+# data_dir: ./data/Open_Images/train/downsampled_1000k #  314,437 images (not 1000k)
+data_dir: ./data/Open_Images/train/downsampled/combined #  total 150K images (mini_only_1-150000: 16K + mini_only_150001-234598: 9K + non_only_1-150000: 36K + mixed_1-150000: 89K)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size

@@ -42,12 +42,13 @@ echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 START_TIME=$(date +%s)
 
-# ViT-Small (default config)
 torchrun --standalone --nproc_per_node=${TORCHRUN_PROC_NUM} scripts/train.py \
   distributed.enabled=true \
   experiment_name=${TRAIN_EVAL_EXP_ID} \
-  training.num_epochs=200 \
+  training.num_epochs=220 \
   training.batch_size=512 \
+  model.vit.patch_size=8 \
+  model.dino.koleo_weight=0.001 \
   model.dino.multi_crop_augmentation.local_crops_number=2
 
 # Print training duration
@@ -65,4 +66,5 @@ echo "=================================================="
 
 python scripts/eval_submission.py --config-name=submission \
     experiment_name=${TRAIN_EVAL_EXP_ID} \
-    evaluation.checkpoint_dir=${EVAL_CKPT_DIR}
+    evaluation.checkpoint_dir=${EVAL_CKPT_DIR} \
+    "evaluation.checkpoints=[checkpoint_epoch_220.pth, checkpoint_epoch_210.pth, checkpoint_epoch_200.pth, checkpoint_epoch_190.pth, checkpoint_epoch_180.pth]"

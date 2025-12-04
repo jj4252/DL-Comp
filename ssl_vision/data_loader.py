@@ -338,7 +338,7 @@ class LocalImageDataset(Dataset):
 
         # Collect all image paths recursively
         self.samples: List[str] = []
-        for dirpath, _, filenames in os.walk(self.root_dir):
+        for dirpath, _, filenames in os.walk(self.root_dir, followlinks=True):
             for fname in filenames:
                 if fname.lower().endswith(self.IMG_EXTENSIONS):
                     self.samples.append(os.path.join(dirpath, fname))

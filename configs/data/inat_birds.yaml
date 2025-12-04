@@ -1,7 +1,7 @@
-dataset_name: places365
+dataset_name: inat_birds
 cache_dir: ./.cache
-# 560 images per class
-data_dir: ./data/Places365/combined # total 204K images (subset_1-300_downsampled: 110K + subset_301-560_downsampled: 95K)
+# 70 images per class
+data_dir: ./data/iNat_birds/combined # 104K images (NA_1_downsampled: 53K + non_NA_1_downsampled: 51K)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size
