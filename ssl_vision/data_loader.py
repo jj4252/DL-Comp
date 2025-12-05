@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from typing import Optional, List, Tuple
 import pandas as pd
+import logging
+import sys
 
 from omegaconf import DictConfig
 import numpy as np
@@ -18,6 +20,9 @@ from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 from datasets import load_dataset
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 
@@ -329,31 +334,37 @@ class LocalImageDataset(Dataset):
     IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
 
     def __init__(self, root_dir: str, transform=None):
-        self.root_dir = str(root_dir)
+        # Convert to absolute path to avoid issues with DataLoader worker CWD
+        self.root_dir = os.path.abspath(str(root_dir))
         self.transform = transform
 
         root_path = Path(self.root_dir)
         if not root_path.exists():
             raise FileNotFoundError(f"[LocalImageDataset] root_dir does not exist: {self.root_dir}")
 
-        # Collect all image paths recursively
+        # Collect all image paths recursively (store as absolute paths)
         self.samples: List[str] = []
         for dirpath, _, filenames in os.walk(self.root_dir, followlinks=True):
             for fname in filenames:
                 if fname.lower().endswith(self.IMG_EXTENSIONS):
-                    self.samples.append(os.path.join(dirpath, fname))
+                    # Store absolute path
+                    abs_path = os.path.abspath(os.path.join(dirpath, fname))
+                    self.samples.append(abs_path)
 
         if len(self.samples) == 0:
             raise RuntimeError(f"[LocalImageDataset] No images found in {self.root_dir}")
 
+        logger.info(f"[LocalImageDataset] Loaded {len(self.samples)} images from {self.root_dir}")
         print(f"[LocalImageDataset] Loaded {len(self.samples)} images from {self.root_dir}")
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
+        original_idx = idx
         path = self.samples[idx]
         max_tries = 10
+        attempted_paths = []
 
         for attempt in range(max_tries):
             try:
@@ -361,18 +372,27 @@ class LocalImageDataset(Dataset):
                 with Image.open(path) as img:
                     image = img.convert("RGB")
                 break  # Success, exit the retry loop
-            except (UnidentifiedImageError, OSError) as e:
-                # If corrupted, move to the next index (wrap around at the end)
-                print(f"[WARN] Skipping corrupted image at index {idx}: {path} ({e})")
+            except (UnidentifiedImageError, OSError, FileNotFoundError) as e:
+                # Log the error (using logger for better visibility in workers)
+                error_type = type(e).__name__
+                attempted_paths.append(path)
+
+                # Print to stderr for immediate visibility
+                print(f"[WARN] Worker {os.getpid()}: Skipping corrupted/missing image at index {idx}: {path} ({error_type}: {e})",
+                      file=sys.stderr, flush=True)
+                logger.warning(f"Skipping corrupted/missing image at index {idx}: {path} ({error_type})")
+
+                # Move to the next index (wrap around at the end)
                 idx = (idx + 1) % len(self.samples)
                 path = self.samples[idx]
 
-                # If we've exhausted all attempts, raise an error
+                # If we've exhausted all attempts, raise an error with details
                 if attempt == max_tries - 1:
-                    raise RuntimeError(
-                        f"Failed to load a valid image after {max_tries} attempts. "
-                        f"Dataset may have too many corrupted images."
+                    error_msg = (
+                        f"Failed to load a valid image after {max_tries} attempts starting from index {original_idx}. "
+                        f"Attempted paths:\n" + "\n".join(f"  - {p}" for p in attempted_paths[:5])
                     )
+                    raise RuntimeError(error_msg)
 
         # Apply transformation (may be MultiCropTransform)
         if self.transform:
