@@ -1,7 +1,7 @@
 dataset_name: places365
 cache_dir: ./.cache
 # 560 images per class
-data_dir: ./data/Places365/combined # total 204K images (subset_1-300_downsampled: 110K + subset_301-560_downsampled: 95K)
+data_dir: ./data/Places365/combined # total 300K images (subset_1-300_downsampled: 110K + subset_301-560_downsampled: 95K + subset_561-820_downsampled: 95K)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size

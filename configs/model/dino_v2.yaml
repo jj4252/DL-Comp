@@ -41,15 +41,15 @@ model:
     warmup_teacher_temp: 0.04
     warmup_teacher_temp_epochs: 30
     student_temp: 0.1
-    koleo_weight: 0.02  # KoLeo regularizer weight (0.0 = disabled)
+    koleo_weight: 0.0  # KoLeo regularizer weight (0.0 = disabled)
 
     # bckward compatibility with previous config
     # global_crops_scale: [0.25, 1.0]
     # local_crops_scale: [0.05, 0.4]
-    # local_crops_number: 4
+    # local_crops_number: 2
 
     multi_crop_augmentation:
-      local_crops_number: 4
+      local_crops_number: 2
       horizontal_flip_prob: 0.5
 
       global_first: &global_first
@@ -70,6 +70,10 @@ model:
         scale: [0.05, 0.18]
         color_jitter: 0.5
         blur_prob: 0.5
+        random_erasing:
+          p: 0.1
+          scale: [0.02, 0.1]
+          ratio: [0.3, 3.3]
 
       local_large:
         <<: *global_first

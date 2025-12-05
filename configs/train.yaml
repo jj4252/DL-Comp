@@ -6,7 +6,8 @@ defaults:
   - data@data.1: open_images
   - data@data.2: na_birds
   - data@data.3: inat_birds
-  - data@data.4: places365
+  - data@data.4: birdsnap
+  - data@data.5: places365
   - optimizer: adamw
   - scheduler: cosine
   - evaluation/data@evaluation.data.0: cub200    # only the first eval dataset is used for early stopping criteria

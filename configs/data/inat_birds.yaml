@@ -1,7 +1,7 @@
 dataset_name: inat_birds
 cache_dir: ./.cache
 # 70 images per class
-data_dir: ./data/iNat_birds/combined # 104K images (NA_1_downsampled: 53K + non_NA_1_downsampled: 51K)
+data_dir: ./data/iNat_birds/combined # 208K images (NA: 106K + non_NA: 102K)
 
 # Image preprocessing
 image_size: 96  # Match the model's input size
