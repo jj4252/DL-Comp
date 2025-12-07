@@ -69,21 +69,6 @@ python scripts/eval_linear_probe.py \
     evaluation.linear_probe_lr=0.001 \
     evaluation.lr_schedule=cosine
 
-# Evaluate on SUN397 with linear probing
-echo ""
-echo "=================================================="
-echo "Evaluating on SUN397"
-echo "=================================================="
-python scripts/eval_linear_probe.py \
-    --config-name eval_linear_probe \
-    experiment_name=sun397_${EVAL_EXP_ID} \
-    'evaluation/data@evaluation.data.0=sun397' \
-    evaluation.checkpoint_dir=${CHECKPOINT_DIR} \
-    evaluation.checkpoints=[${CHECKPOINT_FILE}] \
-    evaluation.linear_probe_epochs=100 \
-    evaluation.linear_probe_lr=0.001 \
-    evaluation.lr_schedule=cosine
-
 echo ""
 echo "=================================================="
 echo "All evaluations completed!"
