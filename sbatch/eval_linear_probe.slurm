@@ -3,7 +3,7 @@
 #SBATCH --account=ds_ga_3001_003-2025fa
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --time=24:00:00
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
