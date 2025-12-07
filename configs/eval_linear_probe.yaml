@@ -30,7 +30,7 @@ evaluation:
 
   # Linear probing configuration
   linear_probe_epochs: 2000  # Number of epochs for linear probing
-  linear_probe_lr: 0.01  # Initial learning rate
+  linear_probe_lr: 0.03  # Initial learning rate
   linear_probe_batch_size: 256  # Batch size for linear probing
   linear_probe_optimizer: sgd  # Options: sgd, adam, adamw
   linear_probe_weight_decay: 1e-4  # Weight decay (try 0.0, 1e-5, 1e-4, 1e-3)
