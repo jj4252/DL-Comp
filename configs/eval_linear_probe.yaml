@@ -1,0 +1,45 @@
+# @package _global_
+# Linear probing evaluation configuration for DINOv2
+defaults:
+  - model: dino_v2
+  - data: null  # not used during evaluation
+  - evaluation/data@evaluation.data.0: cub200
+  - evaluation/data@evaluation.data.1: mini_imagenet
+  - evaluation/data@evaluation.data.2: sun397
+  - _self_
+
+# Experiment settings
+experiment_name: eval_linear_probe
+seed: 42
+
+# Training settings (required by config structure, not used during eval)
+training:
+  num_workers: 8
+  batch_size: 256
+
+# Distributed training (not used during eval)
+distributed:
+  enabled: false
+
+# Evaluation settings
+evaluation:
+  checkpoint_dir: ./checkpoints  # Directory with checkpoints
+  checkpoints:
+    - checkpoint_epoch_160.pth
+  batch_size: 256
+  results_dir: ./eval_results
+
+  # Linear probing configuration
+  linear_probe_epochs: 100  # Number of epochs for linear probing
+  linear_probe_lr: 0.001  # Initial learning rate
+  linear_probe_batch_size: 256  # Batch size for linear probing
+  linear_probe_weight_decay: 0.0  # Weight decay
+  linear_probe_momentum: 0.9  # SGD momentum
+
+  # Learning rate scheduling
+  lr_schedule: cosine  # Options: cosine, warmup_cosine, step, constant
+  lr_warmup_epochs: 10  # Number of warmup epochs (for warmup_cosine)
+  lr_min: 1e-6  # Minimum learning rate (for cosine schedules)
+  lr_decay_steps: null  # List of epochs to decay LR (for step schedule), e.g., [50, 75]
+  lr_decay_rate: 0.1  # Decay rate for step schedule
+

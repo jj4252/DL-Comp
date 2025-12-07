@@ -1,0 +1,37 @@
+# @package _global_
+model:
+  name: moco_v3
+  architecture: vit_small_patch8_224  # ViT-Small with patch 8, actual image size will be overridden by data.image_size
+
+  # Vision Transformer settings
+  vit:
+    image_size: 96 # overrides the timm architecture's image size
+    patch_size: 8 # overrides the timm architecture's patch size
+    drop_path_rate: 0.15
+    mlp_ratio: 4.0
+
+    # ViT-Small (default)
+    embed_dim: 384
+    depth: 12
+    num_heads: 6
+
+    # ViT-Base
+    # embed_dim: 768
+    # depth: 12
+    # num_heads: 12
+
+  # MoCo V3 specific settings
+  moco:
+    proj_dim: 256           # Projection head output dimension
+    proj_hidden_dim: 2048   # Hidden dimension in projection head (set to 0 to use embed_dim)
+    queue_size: 65536       # Number of negative keys in queue
+    momentum: 0.99          # EMA momentum for key encoder
+    temperature: 0.2        # InfoNCE temperature
+    use_queue: true         # Use negative queue (set to false for batch-only contrastive learning)
+    use_multicrop: false    # Use standard 2-crop MoCo (no local crops)
+    global_crops_scale: [0.2, 1.0]  # Scale range for global crops (not used when use_multicrop=false)
+    local_crops_scale: [0.05, 0.4]  # Scale range for local crops (not used when use_multicrop=false)
+
+  # Pretrained weights
+  pretrained: null
+
