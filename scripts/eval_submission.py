@@ -247,6 +247,8 @@ def write_summary(
     methods,
     dataset_names,
     dataset_sizes,
+    linear_config=None,
+    knn_config=None,
 ):
     checkpoint_map = defaultdict(lambda: defaultdict(dict))
     method_map = defaultdict(lambda: defaultdict(list))
@@ -258,6 +260,22 @@ def write_summary(
     lines = []
     lines.append("Submission Evaluation Summary")
     lines.append("=" * 80)
+
+    # Add evaluation configuration
+    lines.append("Evaluation Configuration:")
+    if "linear" in methods and linear_config:
+        lines.append(f"  Linear Probing:")
+        lines.append(f"    - Optimizer: {linear_config.get('optimizer', 'SGD')}")
+        lines.append(f"    - Learning Rate: {linear_config.get('lr', 0.001)}")
+        lines.append(f"    - Momentum: {linear_config.get('momentum', 0.9)}")
+        lines.append(f"    - Weight Decay: {linear_config.get('weight_decay', 0.0)}")
+        lines.append(f"    - Batch Size: {linear_config.get('batch_size', 256)}")
+        lines.append(f"    - Epochs: {linear_config.get('epochs', 100)}")
+    if "knn" in methods and knn_config:
+        lines.append(f"  k-NN:")
+        lines.append(f"    - k: {knn_config.get('k', 20)}")
+    lines.append("")
+
     lines.append("Datasets:")
     for dataset in dataset_names:
         sizes = dataset_sizes.get(dataset, {})
@@ -357,43 +375,89 @@ def main(cfg: DictConfig):
     linear_batch_size = eval_cfg.get("linear_probe_batch_size", batch_size)
     knn_k = eval_cfg.get("knn_k", 20)
 
+    # Store configuration for summary
+    linear_config = {
+        "optimizer": "SGD",
+        "lr": linear_lr,
+        "momentum": 0.9,
+        "weight_decay": 0.0,
+        "batch_size": linear_batch_size,
+        "epochs": linear_epochs,
+    }
+    knn_config = {
+        "k": knn_k,
+    }
+
+    # Print evaluation configuration
+    print("\n" + "=" * 80)
+    print("EVALUATION CONFIGURATION")
+    print("=" * 80)
+    if "linear" in methods:
+        print("Linear Probing Settings:")
+        print(f"  - Optimizer: {linear_config['optimizer']}")
+        print(f"  - Learning Rate: {linear_config['lr']}")
+        print(f"  - Momentum: {linear_config['momentum']}")
+        print(f"  - Weight Decay: {linear_config['weight_decay']}")
+        print(f"  - Batch Size: {linear_config['batch_size']}")
+        print(f"  - Epochs: {linear_config['epochs']}")
+    if "knn" in methods:
+        print("k-NN Settings:")
+        print(f"  - k: {knn_config['k']}")
+
     records = []
 
     print("\n" + "=" * 80)
-    print("BEGINNING CHECKPOINT EVALUATION")
+    print("BEGINNING EVALUATION")
     print("=" * 80)
 
-    for checkpoint_path in checkpoint_paths:
-        print("\n" + "-" * 80)
-        print(f"Processing checkpoint: {checkpoint_path}")
-        print("-" * 80)
+    for method in methods:
+        print("\n" + "=" * 80)
+        print(f"METHOD: {METHOD_LABELS[method]}")
+        print("=" * 80)
 
-        backbone = load_backbone(str(checkpoint_path), device)
-        backbone.eval()
+        if method == "knn":
+            print(f"k-NN Configuration: k={knn_k}")
+        else:
+            print(f"Linear Probing Configuration:")
+            print(f"  - Optimizer: {linear_config['optimizer']}")
+            print(f"  - Learning Rate: {linear_config['lr']}")
+            print(f"  - Momentum: {linear_config['momentum']}")
+            print(f"  - Weight Decay: {linear_config['weight_decay']}")
+            print(f"  - Batch Size: {linear_config['batch_size']}")
+            print(f"  - Epochs: {linear_config['epochs']}")
 
-        dataset_features = {}
-        for dataset_name in dataset_names:
-            dataset_features[dataset_name] = {}
-            for split_name in SPLIT_ORDER:
-                loader = dataset_loaders[dataset_name][split_name]
-                print(f"Extracting {split_name} features for {dataset_name}...")
-                features, labels, filenames = extract_features(backbone, loader, device)
-                dataset_features[dataset_name][split_name] = {
-                    "features": features,
-                    "labels": labels,
-                    "filenames": filenames,
-                }
+        for checkpoint_path in checkpoint_paths:
+            print("\n" + "-" * 80)
+            print(f"Checkpoint: {checkpoint_path.name}")
+            print("-" * 80)
 
-        for method in methods:
+            backbone = load_backbone(str(checkpoint_path), device)
+            backbone.eval()
+
             for dataset_name in dataset_names:
-                splits = dataset_features[dataset_name]
-                train_features = splits["train"]["features"]
-                train_labels = splits["train"]["labels"]
-                val_features = splits["val"]["features"]
-                val_labels = splits["val"]["labels"]
-                test_features = splits["test"]["features"]
-                test_filenames = splits["test"]["filenames"]
+                print(f"\nEvaluating on {dataset_name}...")
 
+                # Extract features for this dataset
+                dataset_features = {}
+                for split_name in SPLIT_ORDER:
+                    loader = dataset_loaders[dataset_name][split_name]
+                    print(f"  Extracting {split_name} features...")
+                    features, labels, filenames = extract_features(backbone, loader, device)
+                    dataset_features[split_name] = {
+                        "features": features,
+                        "labels": labels,
+                        "filenames": filenames,
+                    }
+
+                # Get features
+                train_features = dataset_features["train"]["features"]
+                train_labels = dataset_features["train"]["labels"]
+                val_features = dataset_features["val"]["features"]
+                val_labels = dataset_features["val"]["labels"]
+                test_features = dataset_features["test"]["features"]
+                test_filenames = dataset_features["test"]["filenames"]
+
+                # Evaluate with current method
                 if method == "knn":
                     knn_classifier = KNNClassifier(k=knn_k)
                     knn_classifier.train(train_features, train_labels)
@@ -421,9 +485,10 @@ def main(cfg: DictConfig):
 
                 method_label = METHOD_LABELS[method]
                 print(
-                    f"[{checkpoint_path.name}] {method_label} - {dataset_name}: "
-                    f"{val_acc * 100:.2f}% | Predictions: {pred_path}"
+                    f"  [{checkpoint_path.name}] {method_label} - {dataset_name}: "
+                    f"Validation Accuracy = {val_acc * 100:.2f}%"
                 )
+                print(f"  Predictions saved to: {pred_path}")
 
                 records.append(
                     {
@@ -435,8 +500,8 @@ def main(cfg: DictConfig):
                     }
                 )
 
-        del backbone
-        torch.cuda.empty_cache()
+            del backbone
+            torch.cuda.empty_cache()
 
     assert records, "No checkpoints were evaluated."
 
@@ -448,6 +513,8 @@ def main(cfg: DictConfig):
         methods,
         dataset_names,
         dataset_sizes,
+        linear_config=linear_config if "linear" in methods else None,
+        knn_config=knn_config if "knn" in methods else None,
     )
 
     print("\n" + summary_text)
