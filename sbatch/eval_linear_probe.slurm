@@ -37,7 +37,7 @@ export PYTHONPATH=/scratch/jj4252/Nov_14_distill/ssl_project/DL-Comp:$PYTHONPATH
 CHECKPOINT_DIR=./checkpoints
 
 # Checkpoint file
-CHECKPOINT_FILE=checkpoint_epoch_160.pth
+CHECKPOINT_FILE=checkpoint_epoch_180.pth
 
 # Evaluate on CUB-200 with linear probing
 echo ""

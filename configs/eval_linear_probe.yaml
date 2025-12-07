@@ -24,7 +24,7 @@ distributed:
 evaluation:
   checkpoint_dir: ./checkpoints  # Directory with checkpoints
   checkpoints:
-    - checkpoint_epoch_160.pth
+    - checkpoint_epoch_180.pth
   batch_size: 256
   results_dir: ./eval_results
 
