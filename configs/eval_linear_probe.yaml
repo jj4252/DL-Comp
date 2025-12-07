@@ -32,13 +32,14 @@ evaluation:
   linear_probe_epochs: 2000  # Number of epochs for linear probing
   linear_probe_lr: 0.01  # Initial learning rate
   linear_probe_batch_size: 256  # Batch size for linear probing
-  linear_probe_weight_decay: 0.0  # Weight decay
-  linear_probe_momentum: 0.9  # SGD momentum
+  linear_probe_optimizer: sgd  # Options: sgd, adam, adamw
+  linear_probe_weight_decay: 1e-4  # Weight decay (try 0.0, 1e-5, 1e-4, 1e-3)
+  linear_probe_momentum: 0.9  # SGD momentum (only used for SGD)
 
   # Learning rate scheduling
-  lr_schedule: cosine  # Options: cosine, warmup_cosine, step, constant
-  lr_warmup_epochs: 10  # Number of warmup epochs (for warmup_cosine)
-  lr_min: 1e-6  # Minimum learning rate (for cosine schedules)
+  lr_schedule: warmup_cosine  # Options: cosine, warmup_cosine, step, constant
+  lr_warmup_epochs: 50  # Number of warmup epochs (for warmup_cosine) - increased for higher LR
+  lr_min: 1e-5  # Minimum learning rate (for cosine schedules) - increased from 1e-6
   lr_decay_steps: null  # List of epochs to decay LR (for step schedule), e.g., [50, 75]
   lr_decay_rate: 0.1  # Decay rate for step schedule
 

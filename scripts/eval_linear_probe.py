@@ -33,6 +33,7 @@ def linear_probe_training(
     batch_size=256,
     weight_decay=0.0,
     momentum=0.9,
+    optimizer_type="sgd",
     lr_schedule="cosine",
     lr_warmup_epochs=10,
     lr_min=1e-6,
@@ -52,18 +53,40 @@ def linear_probe_training(
     print(f"\n{'='*60}")
     print("Linear Probing Training with Fine-tuned Learning Rate")
     print(f"{'='*60}")
-    print(f"Initial LR: {lr}, Schedule: {lr_schedule}, Epochs: {epochs}")
+    print(f"Optimizer: {optimizer_type.upper()}, Initial LR: {lr}, Schedule: {lr_schedule}, Epochs: {epochs}")
+    if weight_decay > 0:
+        print(f"Weight Decay: {weight_decay}")
 
     input_dim = train_features.shape[1]
     classifier = nn.Linear(input_dim, num_classes).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(
-        classifier.parameters(), 
-        lr=lr, 
-        momentum=momentum, 
-        weight_decay=weight_decay
-    )
+    
+    # Setup optimizer
+    optimizer_type = optimizer_type.lower()
+    if optimizer_type == "sgd":
+        optimizer = torch.optim.SGD(
+            classifier.parameters(), 
+            lr=lr, 
+            momentum=momentum, 
+            weight_decay=weight_decay
+        )
+    elif optimizer_type == "adam":
+        optimizer = torch.optim.Adam(
+            classifier.parameters(),
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999)
+        )
+    elif optimizer_type == "adamw":
+        optimizer = torch.optim.AdamW(
+            classifier.parameters(),
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(0.9, 0.999)
+        )
+    else:
+        raise ValueError(f"Unknown optimizer type: {optimizer_type}. Must be 'sgd', 'adam', or 'adamw'")
 
     # Setup learning rate scheduler
     if lr_schedule == "cosine":
@@ -428,6 +451,7 @@ def main(cfg: DictConfig):
     linear_batch_size = eval_cfg.get("linear_probe_batch_size", batch_size)
     linear_weight_decay = eval_cfg.get("linear_probe_weight_decay", 0.0)
     linear_momentum = eval_cfg.get("linear_probe_momentum", 0.9)
+    optimizer_type = eval_cfg.get("linear_probe_optimizer", "sgd")
     lr_schedule = eval_cfg.get("lr_schedule", "cosine")
     lr_warmup_epochs = eval_cfg.get("lr_warmup_epochs", 10)
     lr_min = eval_cfg.get("lr_min", 1e-6)
@@ -436,10 +460,10 @@ def main(cfg: DictConfig):
 
     # Store configuration for summary
     linear_config = {
-        "optimizer": "SGD",
+        "optimizer": optimizer_type.upper(),
         "lr": linear_lr,
         "lr_schedule": lr_schedule,
-        "momentum": linear_momentum,
+        "momentum": linear_momentum if optimizer_type == "sgd" else None,
         "weight_decay": linear_weight_decay,
         "batch_size": linear_batch_size,
         "epochs": linear_epochs,
@@ -453,7 +477,8 @@ def main(cfg: DictConfig):
     print(f"  - Optimizer: {linear_config['optimizer']}")
     print(f"  - Learning Rate: {linear_config['lr']}")
     print(f"  - LR Schedule: {linear_config['lr_schedule']}")
-    print(f"  - Momentum: {linear_config['momentum']}")
+    if linear_config['momentum'] is not None:
+        print(f"  - Momentum: {linear_config['momentum']}")
     print(f"  - Weight Decay: {linear_config['weight_decay']}")
     print(f"  - Batch Size: {linear_config['batch_size']}")
     print(f"  - Epochs: {linear_config['epochs']}")
@@ -512,6 +537,7 @@ def main(cfg: DictConfig):
                 batch_size=linear_batch_size,
                 weight_decay=linear_weight_decay,
                 momentum=linear_momentum,
+                optimizer_type=optimizer_type,
                 lr_schedule=lr_schedule,
                 lr_warmup_epochs=lr_warmup_epochs,
                 lr_min=lr_min,
