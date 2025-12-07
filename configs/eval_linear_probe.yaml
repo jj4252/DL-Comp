@@ -29,8 +29,8 @@ evaluation:
   results_dir: ./eval_results
 
   # Linear probing configuration
-  linear_probe_epochs: 100  # Number of epochs for linear probing
-  linear_probe_lr: 0.001  # Initial learning rate
+  linear_probe_epochs: 2000  # Number of epochs for linear probing
+  linear_probe_lr: 0.01  # Initial learning rate
   linear_probe_batch_size: 256  # Batch size for linear probing
   linear_probe_weight_decay: 0.0  # Weight decay
   linear_probe_momentum: 0.9  # SGD momentum

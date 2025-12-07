@@ -50,8 +50,8 @@ python scripts/eval_linear_probe.py \
     'evaluation/data@evaluation.data.0=cub200' \
     evaluation.checkpoint_dir=${CHECKPOINT_DIR} \
     evaluation.checkpoints=[${CHECKPOINT_FILE}] \
-    evaluation.linear_probe_epochs=100 \
-    evaluation.linear_probe_lr=0.001 \
+    evaluation.linear_probe_epochs=2000 \
+    evaluation.linear_probe_lr=0.01 \
     evaluation.lr_schedule=cosine
 
 # Evaluate on mini-ImageNet with linear probing
@@ -65,8 +65,8 @@ python scripts/eval_linear_probe.py \
     'evaluation/data@evaluation.data.0=mini_imagenet' \
     evaluation.checkpoint_dir=${CHECKPOINT_DIR} \
     evaluation.checkpoints=[${CHECKPOINT_FILE}] \
-    evaluation.linear_probe_epochs=100 \
-    evaluation.linear_probe_lr=0.001 \
+    evaluation.linear_probe_epochs=2000 \
+    evaluation.linear_probe_lr=0.01 \
     evaluation.lr_schedule=cosine
 
 echo ""
