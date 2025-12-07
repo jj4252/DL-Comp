@@ -202,14 +202,34 @@ def save_predictions_to_csv(predictions, filenames, out_path):
     return df
 
 
-def extract_experiment_id(checkpoint_dir: Path) -> str:
-    """Extract experiment ID (long digit sequence) from checkpoint path."""
+def extract_experiment_id(checkpoint_dir: Path, checkpoint_paths: list = None) -> str:
+    """Extract experiment ID from checkpoint path or filename."""
+    # First try to extract long digit sequence (5+ digits) from checkpoint directory path
     for candidate in [checkpoint_dir] + list(checkpoint_dir.parents):
         name = candidate.name
         match = re.search(r'(\d{5,})', name)
         if match:
             return match.group(1)
-    raise ValueError(f"Could not infer experiment ID from path: {checkpoint_dir}")
+    
+    # If not found, try to extract from checkpoint filenames
+    if checkpoint_paths:
+        for checkpoint_path in checkpoint_paths:
+            # Try long digit sequence first
+            match = re.search(r'(\d{5,})', checkpoint_path.name)
+            if match:
+                return match.group(1)
+            # Try epoch number as fallback (e.g., checkpoint_epoch_160.pth -> 160)
+            match = re.search(r'epoch_(\d+)', checkpoint_path.name)
+            if match:
+                return f"epoch_{match.group(1)}"
+            # Try any digit sequence as last resort
+            match = re.search(r'(\d+)', checkpoint_path.name)
+            if match:
+                return match.group(1)
+    
+    # Final fallback: use a timestamp-based ID
+    import time
+    return f"eval_{int(time.time())}"
 
 
 def _sort_key(value):
@@ -398,7 +418,7 @@ def main(cfg: DictConfig):
 
     results_dir = Path(eval_cfg.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
-    experiment_id = extract_experiment_id(checkpoint_dir)
+    experiment_id = extract_experiment_id(checkpoint_dir, checkpoint_paths)
     experiment_results_dir = create_results_directory(results_dir, experiment_id)
     print(f"\nResults directory: {experiment_results_dir}")
 
