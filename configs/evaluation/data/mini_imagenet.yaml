@@ -1,6 +1,6 @@
 dataset_name: mini_imagenet
 cache_dir: ./.cache
-data_dir: ./data/mini-ImageNet
+data_dir: ./data/mini_ImageNet
 
 # Image preprocessing
 # TODO: double check 'image_size' (for all data configs)
