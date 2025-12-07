@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --partition=a100_short
+#SBATCH --partition=g2-standard-12
 #SBATCH --account=ds_ga_3001_003-2025fa
 #SBATCH --nodes=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --time=24:00:00
-#SBATCH --mem=128GB
+#SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=eval_linear_probe
 #SBATCH --mail-type=ALL
